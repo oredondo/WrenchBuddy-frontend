@@ -1,88 +1,336 @@
-:root {
+/* ================================
+   WrenchBuddy - Auto Theme (FULL)
+   Mantiene layout original + look automoción
+   ================================ */
+
+:root{
+  --bg0:#0b0d10;
+  --bg1:#0f1318;
+
+  --panel:#151a20;
+  --panel2:#1b212a;
+  --stroke:#2a3240;
+
+  --accent:#e10600;      /* rojo racing */
+  --accent2:#ff3b2f;
+
+  --text:#f4f6f8;
+  --muted:#a7b0bc;
+
+  --radius:14px;
+  --shadow: 0 10px 30px rgba(0,0,0,.55);
+
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   line-height: 1.4;
 }
 
-* { box-sizing: border-box; }
+*{ box-sizing:border-box; }
 
-body { margin: 0; background: #f6f7f8; color: #111; }
+body{
+  margin:0;
+  color:var(--text);
+  min-height:100vh;
 
-a { color: inherit; }
-
-.app { min-height: 100vh; display: flex; flex-direction: column; }
-
-.topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 18px; background: white; border-bottom: 1px solid #e7e9ec;
-  position: sticky; top: 0; z-index: 2;
+  /* asfalto + patrón sutil */
+  background:
+    radial-gradient(1200px 600px at 18% 0%, rgba(225,6,0,.12), transparent 55%),
+    radial-gradient(900px 500px at 85% 10%, rgba(255,59,47,.09), transparent 60%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.02) 0 10px, rgba(0,0,0,.02) 10px 20px),
+    linear-gradient(160deg, var(--bg0), var(--bg1));
 }
 
-.brand { text-decoration: none; font-weight: 800; letter-spacing: 0.2px; }
-.nav { display: flex; gap: 12px; align-items: center; }
-.nav a { text-decoration: none; padding: 6px 8px; border-radius: 8px; }
-.nav a.active { background: #111; color: white; }
+/* Links */
+a{ color:inherit; }
+a:hover{ opacity:.95; }
+a:visited{ color:inherit; }
 
-.content { width: min(1100px, calc(100% - 24px)); margin: 20px auto; flex: 1; }
-.footer { text-align: center; padding: 18px; color: #667; }
+/* ================= APP LAYOUT ================= */
 
-.stack { display: flex; flex-direction: column; gap: 14px; }
-.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-.card {
-  background: white; border: 1px solid #e7e9ec; border-radius: 14px;
-  padding: 14px; box-shadow: 0 1px 0 rgba(0,0,0,0.02);
-}
-.linkcard { text-decoration: none; transition: transform .08s ease; }
-.linkcard:hover { transform: translateY(-1px); }
-
-.form { display: flex; flex-direction: column; gap: 10px; }
-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-input, select, textarea {
-  border: 1px solid #d6d9dd; border-radius: 10px; padding: 10px;
-  font-size: 14px; outline: none; background: white;
-}
-input:focus, select:focus, textarea:focus { border-color: #111; }
-
-.btn {
-  border: 1px solid #111; background: #111; color: white;
-  padding: 10px 12px; border-radius: 10px; font-weight: 700; cursor: pointer;
-}
-.btn.secondary { background: white; color: #111; }
-.btn.danger { background: #b00020; border-color: #b00020; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.linklike {
-  border: none; background: transparent; text-decoration: underline;
-  cursor: pointer; padding: 0; color: inherit;
+.app{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
 }
 
-.muted { color: #667; }
-.error {
-  background: #ffe8e8; border: 1px solid #ffb4b4; color: #7a0010;
-  padding: 10px 12px; border-radius: 12px;
+/* IMPORTANT: el proyecto usa .content (no .container) */
+.content{
+  width: min(1100px, calc(100% - 24px));
+  margin: 20px auto;
+  flex: 1;
 }
 
-.list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+/* ================= TOPBAR / NAV ================= */
 
-.pill {
-  display: inline-block; padding: 2px 8px; border-radius: 999px;
-  border: 1px solid #111; font-size: 12px; margin-left: 6px;
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+
+  padding: 14px 18px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
+  background: linear-gradient(180deg, rgba(27,33,42,.92), rgba(17,21,27,.78));
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 6px 18px rgba(0,0,0,.55);
+  backdrop-filter: blur(8px);
 }
 
-.modalBackdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
-  display: flex; align-items: center; justify-content: center;
-  padding: 18px; z-index: 50;
+.brand{
+  text-decoration:none;
+  font-weight: 900;
+  letter-spacing:.4px;
+  color: var(--accent2);
+  text-transform: none;
 }
-.modal {
+
+/* nav del proyecto */
+.nav{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.nav a{
+  text-decoration:none;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  border: 1px solid transparent;
+  color: var(--text);
+}
+
+.nav a:hover{
+  background: rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.10);
+}
+
+.nav a.active{
+  background: rgba(225,6,0,.18);
+  border-color: rgba(225,6,0,.40);
+  color: var(--text);
+}
+
+/* ================= UTILIDADES DE LAYOUT (CLAVE para Vehículos) ================= */
+
+.stack{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+}
+
+.row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+/* grid de Vehículos (CLAVE) */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+/* grid2 de formularios */
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ================= CARDS ================= */
+
+.card{
+  background: linear-gradient(180deg, rgba(27,33,42,.92), rgba(17,21,27,.78));
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+/* cards que son links (Vehículos) */
+.linkcard{
+  text-decoration:none;
+  transition: transform .10s ease, box-shadow .10s ease, border-color .10s ease;
+  display:block;            /* importante para que el Link sea “tarjeta” */
+  min-height: 0;            /* evita estiramientos raros */
+}
+
+.linkcard:hover{
+  transform: translateY(-2px);
+  border-color: rgba(225,6,0,.35);
+  box-shadow: 0 14px 36px rgba(0,0,0,.65);
+}
+
+/* Titulares */
+h1{ margin: 0; font-size: 42px; letter-spacing:.2px; }
+h2{ margin: 0; font-size: 22px; }
+h3{ margin: 0 0 8px 0; font-size: 18px; color: var(--accent2); }
+
+p{ margin: 0 0 8px 0; }
+p:last-child{ margin-bottom: 0; }
+
+.muted{ color: var(--muted); }
+
+/* ================= FORMULARIOS ================= */
+
+.form{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+label{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+input, select, textarea{
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  outline: none;
+
+  background: rgba(10,12,15,.65);
+  color: var(--text);
+}
+
+input:focus, select:focus, textarea:focus{
+  border-color: rgba(225,6,0,.55);
+  box-shadow: 0 0 0 3px rgba(225,6,0,.18);
+}
+
+/* ================= BOTONES ================= */
+
+.btn{
+  border: 1px solid rgba(225,6,0,.45);
+  background: linear-gradient(90deg, var(--accent), #b30000);
+  color: #fff;
+
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 900;
+  letter-spacing:.5px;
+  cursor: pointer;
+
+  box-shadow: 0 10px 22px rgba(225,6,0,.16);
+}
+
+.btn:hover{
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btn.secondary{
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.14);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.btn.secondary:hover{
+  background: rgba(255,255,255,.10);
+  transform: translateY(-1px);
+}
+
+.btn.danger{
+  background: linear-gradient(90deg, #b00020, #8a0019);
+  border-color: rgba(255,0,64,.55);
+}
+
+.btn:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* “Cerrar” en modal */
+.linklike{
+  border:none;
+  background: transparent;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  color: var(--muted);
+}
+.linklike:hover{ color: var(--text); }
+
+/* ================= ERRORES ================= */
+
+.error{
+  background: rgba(255, 40, 40, .12);
+  border: 1px solid rgba(255, 90, 90, .30);
+  color: #ffd0d0;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+/* ================= LISTAS ================= */
+
+.list{
+  list-style:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* ================= PILL ================= */
+
+.pill{
+  display:inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(225,6,0,.55);
+  font-size: 12px;
+  margin-left: 6px;
+  color: var(--text);
+  background: rgba(225,6,0,.12);
+}
+
+/* ================= MODAL ================= */
+
+.modalBackdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+  z-index: 50;
+}
+
+.modal{
   width: min(720px, 100%);
-  background: white; border-radius: 16px; padding: 14px;
-  border: 1px solid #e7e9ec;
+  background: linear-gradient(180deg, rgba(27,33,42,.95), rgba(17,21,27,.86));
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 50px rgba(0,0,0,.7);
 }
 
-@media (max-width: 640px) {
-  .grid2 { grid-template-columns: 1fr; }
-  .row { align-items: start; }
+/* ================= FOOTER ================= */
+
+.footer{
+  text-align:center;
+  padding: 18px;
+  color: var(--muted);
+  opacity:.9;
 }
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-widt

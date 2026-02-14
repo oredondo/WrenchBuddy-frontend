@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../state/auth'
+import logo from '../assets/wrenchbuddy-logo.png'
 
 export default function Home() {
   const { user, loading } = useAuth()
 
   return (
     <div className="stack">
-      <div className="card">
+      <div className="card" style={{ textAlign: 'center' }}>
+        <img src={logo} alt="WrenchBuddy logo" className="home-logo" />
         <h1>WrenchBuddy</h1>
         <p>
           Frontend React conectado a tu backend Django REST.

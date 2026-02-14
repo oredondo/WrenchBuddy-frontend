@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as wb from '../api/wrenchbuddy'
 import type { ApiError } from '../api/client'
@@ -16,6 +16,7 @@ export default function VehicleDetail() {
   const [vehicle, setVehicle] = useState<wb.Vehicle | null>(null)
   const [events, setEvents] = useState<wb.MaintenanceEvent[]>([])
   const [tasks, setTasks] = useState<wb.MaintenanceTask[]>([])
+  const [attachmentsByEvent, setAttachmentsByEvent] = useState<Record<number, wb.EventAttachment[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +32,12 @@ export default function VehicleDetail() {
       setVehicle(v)
       setEvents(e)
       setTasks(t)
+
+      // Load attachments for all events
+      const attResults = await Promise.all(e.map(ev => wb.listAttachments(ev.id)))
+      const byEvent: Record<number, wb.EventAttachment[]> = {}
+      e.forEach((ev, i) => { byEvent[ev.id] = attResults[i] })
+      setAttachmentsByEvent(byEvent)
     } catch (e2) {
       setError(errMsg(e2))
     } finally {
@@ -111,6 +118,11 @@ export default function VehicleDetail() {
                   <b>{ev.task_name}</b>
                   <div className="muted">{ev.date} · {ev.km_at_service.toLocaleString()} km · {ev.cost ? `${ev.cost} €` : '—'}</div>
                   {ev.notes ? <div className="muted">{ev.notes}</div> : null}
+                  <EventAttachments
+                    eventId={ev.id}
+                    attachments={attachmentsByEvent[ev.id] || []}
+                    onChanged={refresh}
+                  />
                 </li>
               ))}
             </ul>
@@ -146,12 +158,76 @@ export default function VehicleDetail() {
   )
 }
 
+function EventAttachments({ eventId, attachments, onChanged }: {
+  eventId: number
+  attachments: wb.EventAttachment[]
+  onChanged: () => Promise<void>
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleUpload(file: File) {
+    setUploading(true)
+    setError(null)
+    try {
+      await wb.uploadAttachment(eventId, file)
+      await onChanged()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(attId: number) {
+    if (!confirm('¿Eliminar adjunto?')) return
+    try {
+      await wb.deleteAttachment(attId)
+      await onChanged()
+    } catch (e) {
+      setError(errMsg(e))
+    }
+  }
+
+  return (
+    <div className="attachments">
+      {attachments.length > 0 ? (
+        attachments.map(att => (
+          <div key={att.id} className="attachment-item">
+            <span>{att.file_type === 'pdf' ? '📄' : '🖼️'}</span>
+            <a href={att.file} target="_blank" rel="noopener noreferrer">{att.original_filename}</a>
+            <span className="muted" style={{ fontSize: 12 }}>{new Date(att.uploaded_at).toLocaleDateString()}</span>
+            <button className="linklike" onClick={() => handleDelete(att.id)}>Eliminar</button>
+          </div>
+        ))
+      ) : null}
+      {error ? <div className="error" style={{ fontSize: 13, padding: '6px 10px' }}>{error}</div> : null}
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) handleUpload(f)
+          e.target.value = ''
+        }}
+      />
+      <label className="file-input-label" onClick={() => fileRef.current?.click()}>
+        {uploading ? 'Subiendo…' : '+ Adjuntar factura'}
+      </label>
+    </div>
+  )
+}
+
 function NewEventForm({ vehicleId, onCreated }: { vehicleId: number; onCreated: () => Promise<void> }) {
   const [taskCode, setTaskCode] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [km, setKm] = useState<number>(0)
   const [notes, setNotes] = useState('')
   const [cost, setCost] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -162,7 +238,7 @@ function NewEventForm({ vehicleId, onCreated }: { vehicleId: number; onCreated: 
     setBusy(true)
     setError(null)
     try {
-      await wb.createEvent({
+      const event = await wb.createEvent({
         vehicle: vehicleId,
         task_code: taskCode,
         date,
@@ -170,9 +246,13 @@ function NewEventForm({ vehicleId, onCreated }: { vehicleId: number; onCreated: 
         notes: notes || undefined,
         cost: cost || undefined,
       })
+      if (file) {
+        await wb.uploadAttachment(event.id, file)
+      }
       setTaskCode('')
       setNotes('')
       setCost('')
+      setFile(null)
       await onCreated()
     } catch (e2) {
       setError(errMsg(e2))
@@ -209,6 +289,15 @@ function NewEventForm({ vehicleId, onCreated }: { vehicleId: number; onCreated: 
           <input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
       </div>
+
+      <label>
+        Factura (opcional)
+        <input
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+      </label>
 
       {error ? <div className="error">{error}</div> : null}
       <button className="btn" disabled={!canSubmit || busy}>{busy ? 'Guardando…' : 'Registrar'}</button>

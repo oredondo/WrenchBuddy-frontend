@@ -331,6 +331,61 @@ input:focus, select:focus, textarea:focus{
   opacity:.9;
 }
 
+/* ================= HOME LOGO ================= */
+
+.home-logo{
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+
+/* ================= ATTACHMENTS ================= */
+
+.attachments{
+  margin-top: 8px;
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+
+.attachment-item{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+}
+
+.attachment-item a{
+  color: var(--accent2);
+  text-decoration: none;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-item a:hover{
+  text-decoration: underline;
+}
+
+.file-input-label{
+  display: inline-block;
+  font-size: 13px;
+  color: var(--accent2);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.file-input-label:hover{
+  text-decoration: underline;
+}
+
 /* ================= RESPONSIVE ================= */
 
 @media (max-widt

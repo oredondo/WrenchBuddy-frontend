@@ -65,6 +65,15 @@ export type MaintenanceTask = {
   updated_at: string
 }
 
+export type EventAttachment = {
+  id: number
+  event: number
+  file: string
+  file_type: 'pdf' | 'image'
+  original_filename: string
+  uploaded_at: string
+}
+
 // ---- Auth (sesión) ----
 export async function me(): Promise<User> {
   return api<User>('/api/users/me/')
@@ -162,4 +171,20 @@ export async function completeTask(id: number, data: {
 
 export async function dismissTask(id: number): Promise<MaintenanceTask> {
   return api<MaintenanceTask>(`/api/maintenance/tasks/${id}/dismiss/`, { method: 'POST' })
+}
+
+// ---- Attachments ----
+export async function listAttachments(eventId: number): Promise<EventAttachment[]> {
+  return api<EventAttachment[]>(`/api/maintenance/attachments/?event=${eventId}`)
+}
+
+export async function uploadAttachment(eventId: number, file: File): Promise<EventAttachment> {
+  const fd = new FormData()
+  fd.append('event', String(eventId))
+  fd.append('file', file)
+  return api<EventAttachment>('/api/maintenance/attachments/', { method: 'POST', body: fd })
+}
+
+export async function deleteAttachment(id: number): Promise<void> {
+  await api(`/api/maintenance/attachments/${id}/`, { method: 'DELETE' })
 }

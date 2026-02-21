@@ -6,7 +6,6 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Vehicles from './pages/Vehicles'
 import VehicleDetail from './pages/VehicleDetail'
-import Maintenance from './pages/Maintenance'
 
 export default function App() {
   return (
@@ -23,10 +22,6 @@ export default function App() {
         <Route
           path="/vehicles/:id"
           element={<ProtectedRoute><VehicleDetail /></ProtectedRoute>}
-        />
-        <Route
-          path="/maintenance"
-          element={<ProtectedRoute><Maintenance /></ProtectedRoute>}
         />
       </Route>
     </Routes>

@@ -13,7 +13,6 @@ export default function Layout() {
           {user ? (
             <>
               <NavLink to="/vehicles">Vehículos</NavLink>
-              <NavLink to="/maintenance">Mantenimiento</NavLink>
               <button className="linklike" onClick={() => logout()}>Salir</button>
             </>
           ) : (

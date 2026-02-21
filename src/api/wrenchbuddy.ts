@@ -26,13 +26,16 @@ export type Vehicle = {
 export type VehicleListItem = Pick<Vehicle, 'id' | 'vehicle_type' | 'brand' | 'model' | 'year' | 'current_km'>
 
 export type TaskCatalog = {
+  id: number
+  vehicle: number
   task_code: string
-  vehicle_type: 'motorcycle' | 'car'
   name: string
   description: string
-  default_interval_km: number | null
-  default_interval_months: number | null
+  interval_km: number | null
+  interval_months: number | null
   is_safety_critical: boolean
+  source: 'ai_generated' | 'user_created'
+  created_at: string
 }
 
 export type MaintenanceEvent = {
@@ -44,23 +47,6 @@ export type MaintenanceEvent = {
   km_at_service: number
   notes: string
   cost: string | null
-  created_from_task: number | null
-  created_at: string
-  updated_at: string
-}
-
-export type MaintenanceTask = {
-  id: number
-  vehicle: number
-  task_code: string
-  task_name: string
-  priority: 'high' | 'medium' | 'low'
-  due_km: number | null
-  due_date: string | null
-  explanation: string
-  estimated_cost: string | null
-  status: 'pending' | 'completed' | 'dismissed'
-  completed_event: number | null
   created_at: string
   updated_at: string
 }
@@ -131,9 +117,35 @@ export async function deleteVehicle(id: number): Promise<void> {
 }
 
 // ---- Maintenance ----
-export async function listCatalog(vehicle_type?: 'motorcycle' | 'car'): Promise<TaskCatalog[]> {
-  const qs = vehicle_type ? `?vehicle_type=${vehicle_type}` : ''
-  return api<TaskCatalog[]>(`/api/maintenance/catalog/${qs}`)
+export async function listVehicleCatalog(vehicleId: number): Promise<TaskCatalog[]> {
+  return api<TaskCatalog[]>(`/api/maintenance/catalog/?vehicle=${vehicleId}`)
+}
+
+export async function createCatalogEntry(data: {
+  vehicle: number
+  task_code: string
+  name: string
+  description?: string
+  interval_km?: number | null
+  interval_months?: number | null
+  is_safety_critical?: boolean
+  source?: 'ai_generated' | 'user_created'
+}): Promise<TaskCatalog> {
+  return api<TaskCatalog>('/api/maintenance/catalog/', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function updateCatalogEntry(id: number, data: Partial<{
+  name: string
+  description: string
+  interval_km: number | null
+  interval_months: number | null
+  is_safety_critical: boolean
+}>): Promise<TaskCatalog> {
+  return api<TaskCatalog>(`/api/maintenance/catalog/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteCatalogEntry(id: number): Promise<void> {
+  await api(`/api/maintenance/catalog/${id}/`, { method: 'DELETE' })
 }
 
 export async function listEvents(vehicle?: number): Promise<MaintenanceEvent[]> {
@@ -150,27 +162,6 @@ export async function createEvent(data: {
   cost?: string
 }): Promise<MaintenanceEvent> {
   return api<MaintenanceEvent>('/api/maintenance/events/', { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listTasks(params?: { vehicle?: number; status?: string }): Promise<MaintenanceTask[]> {
-  const qs = new URLSearchParams()
-  if (params?.vehicle) qs.set('vehicle', String(params.vehicle))
-  if (params?.status) qs.set('status', params.status)
-  const suffix = qs.toString() ? `?${qs.toString()}` : ''
-  return api<MaintenanceTask[]>(`/api/maintenance/tasks/${suffix}`)
-}
-
-export async function completeTask(id: number, data: {
-  date: string
-  km_at_service: number
-  notes?: string
-  cost?: string
-}): Promise<MaintenanceTask> {
-  return api<MaintenanceTask>(`/api/maintenance/tasks/${id}/complete/`, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function dismissTask(id: number): Promise<MaintenanceTask> {
-  return api<MaintenanceTask>(`/api/maintenance/tasks/${id}/dismiss/`, { method: 'POST' })
 }
 
 // ---- Attachments ----

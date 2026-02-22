@@ -17,21 +17,32 @@ export default function VehicleDetail() {
   const [events, setEvents] = useState<wb.MaintenanceEvent[]>([])
   const [catalog, setCatalog] = useState<wb.TaskCatalog[]>([])
   const [attachmentsByEvent, setAttachmentsByEvent] = useState<Record<number, wb.EventAttachment[]>>({})
+  const [accessories, setAccessories] = useState<wb.Accessory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [editingKm, setEditingKm] = useState(false)
+  const [kmValue, setKmValue] = useState(0)
+  const [kmBusy, setKmBusy] = useState(false)
+  const [kmError, setKmError] = useState<string | null>(null)
+  const [reportBusy, setReportBusy] = useState(false)
+
+  const [editingEvent, setEditingEvent] = useState<wb.MaintenanceEvent | null>(null)
 
   async function refresh() {
     setError(null)
     setLoading(true)
     try {
-      const [v, e, cat] = await Promise.all([
+      const [v, e, cat, acc] = await Promise.all([
         wb.getVehicle(vehicleId),
         wb.listEvents(vehicleId),
         wb.listVehicleCatalog(vehicleId),
+        wb.listAccessories(vehicleId),
       ])
       setVehicle(v)
       setEvents(e)
       setCatalog(cat)
+      setAccessories(acc)
 
       // Load attachments for all events
       const attResults = await Promise.all(e.map(ev => wb.listAttachments(ev.id)))
@@ -65,6 +76,23 @@ export default function VehicleDetail() {
         </div>
         {vehicle ? (
           <div className="row">
+            <button
+              className="btn secondary"
+              disabled={reportBusy}
+              onClick={async () => {
+                setReportBusy(true)
+                try {
+                  const filename = `wrenchbuddy_${vehicle.brand}_${vehicle.model}_${vehicle.year}.pdf`.replace(/ /g, '_')
+                  await wb.downloadVehicleReport(vehicleId, filename)
+                } catch (e) {
+                  setError(errMsg(e))
+                } finally {
+                  setReportBusy(false)
+                }
+              }}
+            >
+              {reportBusy ? 'Generando…' : 'Descargar informe PDF'}
+            </button>
             <button className="btn danger" onClick={onDelete}>Eliminar</button>
           </div>
         ) : null}
@@ -78,13 +106,67 @@ export default function VehicleDetail() {
           <div className="card">
             <h3>Datos</h3>
             <p className="muted">{vehicle.vehicle_type === 'motorcycle' ? 'Motocicleta' : 'Coche'} · {vehicle.year}</p>
-            <p><b>{vehicle.current_km.toLocaleString()}</b> km</p>
+            {editingKm ? (
+              <div className="row" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  value={kmValue}
+                  onChange={(e) => setKmValue(Number(e.target.value))}
+                  min={0}
+                  style={{ width: 120 }}
+                  autoFocus
+                />
+                <span className="muted">km</span>
+                <button
+                  className="btn"
+                  disabled={kmBusy}
+                  onClick={async () => {
+                    setKmBusy(true)
+                    setKmError(null)
+                    try {
+                      await wb.updateVehicle(vehicleId, { current_km: kmValue })
+                      setEditingKm(false)
+                      await refresh()
+                    } catch (e) {
+                      setKmError(errMsg(e))
+                    } finally {
+                      setKmBusy(false)
+                    }
+                  }}
+                >
+                  {kmBusy ? 'Guardando…' : 'Guardar'}
+                </button>
+                <button className="linklike" onClick={() => { setEditingKm(false); setKmError(null) }}>Cancelar</button>
+                {kmError ? <span className="error" style={{ fontSize: 13 }}>{kmError}</span> : null}
+              </div>
+            ) : (
+              <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+                <p style={{ margin: 0 }}><b>{vehicle.current_km.toLocaleString()}</b> km</p>
+                <button
+                  className="linklike"
+                  onClick={() => { setKmValue(vehicle.current_km); setEditingKm(true) }}
+                >
+                  Editar km
+                </button>
+              </div>
+            )}
             {vehicle.displacement ? <p>{vehicle.displacement} cc</p> : null}
             {vehicle.notes ? <p className="muted">{vehicle.notes}</p> : null}
           </div>
 
         </div>
       ) : null}
+
+      {editingEvent ? (
+        <EventEditModal
+          event={editingEvent}
+          catalog={catalog}
+          onClose={() => setEditingEvent(null)}
+          onSaved={async () => { setEditingEvent(null); await refresh() }}
+        />
+      ) : null}
+
+      <WhatsDueSection vehicleId={vehicleId} />
 
       <TaskCatalogSection vehicleId={vehicleId} catalog={catalog} onChanged={refresh} />
 
@@ -100,14 +182,36 @@ export default function VehicleDetail() {
             <ul className="list">
               {events.map(ev => (
                 <li key={ev.id}>
-                  <b>{ev.task_name}</b>
-                  <div className="muted">{ev.date} · {ev.km_at_service.toLocaleString()} km · {ev.cost ? `${ev.cost} €` : '—'}</div>
-                  {ev.notes ? <div className="muted">{ev.notes}</div> : null}
-                  <EventAttachments
-                    eventId={ev.id}
-                    attachments={attachmentsByEvent[ev.id] || []}
-                    onChanged={refresh}
-                  />
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <b>{ev.task_name}</b>
+                      <div className="muted">{ev.date} · {ev.km_at_service.toLocaleString()} km · {ev.cost ? `${ev.cost} €` : '—'}</div>
+                      {ev.notes ? <div className="muted">{ev.notes}</div> : null}
+                      <EventAttachments
+                        eventId={ev.id}
+                        attachments={attachmentsByEvent[ev.id] || []}
+                        onChanged={refresh}
+                      />
+                    </div>
+                    <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                      <button className="linklike" onClick={() => setEditingEvent(ev)}>Editar</button>
+                      <button
+                        className="linklike"
+                        style={{ color: 'var(--accent2)' }}
+                        onClick={async () => {
+                          if (!confirm('¿Eliminar este registro?')) return
+                          try {
+                            await wb.deleteEvent(ev.id)
+                            await refresh()
+                          } catch (e) {
+                            alert(errMsg(e))
+                          }
+                        }}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -115,6 +219,394 @@ export default function VehicleDetail() {
         </div>
       </div>
 
+      <AccessorySection vehicleId={vehicleId} accessories={accessories} onChanged={refresh} />
+
+    </div>
+  )
+}
+
+function AccessorySection({ vehicleId, accessories, onChanged }: {
+  vehicleId: number
+  accessories: wb.Accessory[]
+  onChanged: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState<wb.Accessory | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPrice, setAddPrice] = useState('')
+  const [addNotes, setAddNotes] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+
+  async function handleDelete(id: number) {
+    if (!confirm('¿Eliminar este accesorio?')) return
+    try {
+      await wb.deleteAccessory(id)
+      await onChanged()
+    } catch (e) {
+      alert(errMsg(e))
+    }
+  }
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault()
+    setAddBusy(true)
+    setAddError(null)
+    try {
+      await wb.createAccessory({
+        vehicle: vehicleId,
+        name: addName,
+        price: addPrice || undefined,
+        notes: addNotes || undefined,
+      })
+      setAddName('')
+      setAddPrice('')
+      setAddNotes('')
+      setShowAdd(false)
+      await onChanged()
+    } catch (e2) {
+      setAddError(errMsg(e2))
+    } finally {
+      setAddBusy(false)
+    }
+  }
+
+  const total = accessories.reduce((sum, a) => sum + (a.price ? parseFloat(a.price) : 0), 0)
+
+  return (
+    <div className="card">
+      <div className="row">
+        <h2>Accesorios instalados</h2>
+        {!showAdd && (
+          <button className="btn secondary" onClick={() => setShowAdd(true)}>+ Añadir</button>
+        )}
+      </div>
+
+      {accessories.length === 0 && !showAdd ? (
+        <p className="muted">Sin accesorios registrados.</p>
+      ) : null}
+
+      {accessories.length > 0 ? (
+        <>
+          <ul className="list">
+            {accessories.map(a => (
+              <li key={a.id}>
+                <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <b>{a.name}</b>
+                    {a.price ? <span className="muted"> · {parseFloat(a.price).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</span> : null}
+                    {a.notes ? <div className="muted" style={{ fontSize: 13 }}>{a.notes}</div> : null}
+                  </div>
+                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                    <button className="linklike" onClick={() => setEditing(a)}>Editar</button>
+                    <button className="linklike" style={{ color: 'var(--accent2)' }} onClick={() => handleDelete(a.id)}>Eliminar</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {total > 0 ? (
+            <p className="muted" style={{ marginTop: 8, textAlign: 'right' }}>
+              Total invertido: <b>{total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</b>
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {showAdd ? (
+        <form className="form" onSubmit={handleAdd} style={{ borderTop: accessories.length > 0 ? '1px solid var(--border)' : 'none', marginTop: accessories.length > 0 ? 12 : 0, paddingTop: accessories.length > 0 ? 12 : 0 }}>
+          <h3 style={{ margin: 0 }}>Nuevo accesorio</h3>
+          <label>
+            Nombre
+            <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="ej: Escape Akrapovic" required autoFocus />
+          </label>
+          <div className="grid2">
+            <label>
+              Precio (€) (opcional)
+              <input type="number" value={addPrice} onChange={e => setAddPrice(e.target.value)} placeholder="ej: 349.99" min={0} step="0.01" />
+            </label>
+            <label>
+              Notas (opcional)
+              <input value={addNotes} onChange={e => setAddNotes(e.target.value)} placeholder="Marca, referencia…" />
+            </label>
+          </div>
+          {addError ? <div className="error">{addError}</div> : null}
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" disabled={!addName.trim() || addBusy}>{addBusy ? 'Guardando…' : 'Añadir accesorio'}</button>
+            <button type="button" className="linklike" onClick={() => { setShowAdd(false); setAddError(null) }}>Cancelar</button>
+          </div>
+        </form>
+      ) : null}
+
+      {editing ? (
+        <AccessoryModal
+          vehicleId={vehicleId}
+          accessory={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await onChanged() }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function AccessoryModal({ vehicleId, accessory, onClose, onSaved }: {
+  vehicleId: number
+  accessory: wb.Accessory
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const [name, setName] = useState(accessory.name)
+  const [price, setPrice] = useState(accessory.price ?? '')
+  const [notes, setNotes] = useState(accessory.notes)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await wb.updateAccessory(accessory.id, {
+        name,
+        price: price || null,
+        notes,
+      })
+      await onSaved()
+    } catch (e2) {
+      setError(errMsg(e2))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modalBackdrop" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="row">
+          <h2>Editar accesorio</h2>
+          <button className="linklike" onClick={onClose}>Cerrar</button>
+        </div>
+        <form className="form" onSubmit={onSubmit}>
+          <label>
+            Nombre
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ej: Escape Akrapovic" required autoFocus />
+          </label>
+          <label>
+            Precio (€) (opcional)
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="ej: 349.99"
+              min={0}
+              step="0.01"
+            />
+          </label>
+          <label>
+            Notas (opcional)
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Marca, referencia, dónde lo compraste…" />
+          </label>
+          {error ? <div className="error">{error}</div> : null}
+          <button className="btn" disabled={!name.trim() || busy}>
+            {busy ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const PRIORITY_LABEL: Record<string, string> = {
+  high: 'Urgente',
+  medium: 'Próximamente',
+  low: 'Pendiente',
+}
+const PRIORITY_COLOR: Record<string, string> = {
+  high: 'var(--accent2)',
+  medium: '#d97706',
+  low: 'var(--accent)',
+}
+
+function WhatsDueSection({ vehicleId }: { vehicleId: number }) {
+  const [recs, setRecs] = useState<wb.Recommendation[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function ask() {
+    setLoading(true)
+    setError(null)
+    setRecs(null)
+    try {
+      setRecs(await wb.getWhatsDue(vehicleId))
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="row">
+        <h2>¿Qué me toca hacer?</h2>
+        <button className="btn" onClick={ask} disabled={loading}>
+          {loading ? 'Consultando IA…' : 'Consultar IA'}
+        </button>
+      </div>
+
+      {error ? <div className="error">{error}</div> : null}
+
+      {loading ? (
+        <p className="muted">Analizando historial y catálogo…</p>
+      ) : null}
+
+      {recs !== null && recs.length === 0 ? (
+        <p className="muted">Todo al día, no hay tareas urgentes.</p>
+      ) : null}
+
+      {recs && recs.length > 0 ? (
+        <ul className="list">
+          {recs.map((r) => (
+            <li key={r.task_code}>
+              <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                    <b>{r.task_name}</b>
+                    <span
+                      className="pill"
+                      style={{ background: PRIORITY_COLOR[r.priority], color: '#fff' }}
+                    >
+                      {PRIORITY_LABEL[r.priority] ?? r.priority}
+                    </span>
+                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>{r.explanation}</div>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                    {r.due_km ? `Vence ~${r.due_km.toLocaleString()} km` : ''}
+                    {r.due_km && r.due_date ? ' · ' : ''}
+                    {r.due_date ? `antes del ${r.due_date}` : ''}
+                    {r.estimated_cost ? ` · ~${r.estimated_cost} €` : ''}
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
+function EventEditModal({ event, catalog, onClose, onSaved }: {
+  event: wb.MaintenanceEvent
+  catalog: wb.TaskCatalog[]
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const inCatalog = catalog.some(c => c.task_code === event.task_code)
+  const [isCustom, setIsCustom] = useState(!inCatalog)
+  const [taskCode, setTaskCode] = useState(inCatalog ? event.task_code : '')
+  const [customCode, setCustomCode] = useState(!inCatalog ? event.task_code : '')
+  const [date, setDate] = useState(event.date)
+  const [km, setKm] = useState(event.km_at_service)
+  const [notes, setNotes] = useState(event.notes || '')
+  const [cost, setCost] = useState(event.cost || '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const effectiveCode = isCustom ? customCode : taskCode
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await wb.updateEvent(event.id, {
+        task_code: effectiveCode,
+        date,
+        km_at_service: km,
+        notes: notes || undefined,
+        cost: cost || undefined,
+      })
+      await onSaved()
+    } catch (e2) {
+      setError(errMsg(e2))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modalBackdrop" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="row">
+          <h2>Editar registro</h2>
+          <button className="linklike" onClick={onClose}>Cerrar</button>
+        </div>
+        <form className="form" onSubmit={onSubmit}>
+          <label>
+            Tarea
+            {catalog.length > 0 ? (
+              <select
+                value={isCustom ? '__custom__' : taskCode}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setIsCustom(true)
+                  } else {
+                    setIsCustom(false)
+                    setTaskCode(e.target.value)
+                  }
+                }}
+                required={!isCustom}
+              >
+                <option value="">— Seleccionar —</option>
+                {catalog.map(c => (
+                  <option key={c.id} value={c.task_code}>{c.name}</option>
+                ))}
+                <option value="__custom__">Otra (escribir nombre)</option>
+              </select>
+            ) : null}
+          </label>
+
+          {(isCustom || catalog.length === 0) ? (
+            <label>
+              Nombre / código de tarea
+              <input
+                value={customCode}
+                onChange={(e) => setCustomCode(e.target.value)}
+                placeholder="ej: suspension_check"
+                required
+                autoFocus={isCustom}
+              />
+            </label>
+          ) : null}
+
+          <div className="grid2">
+            <label>
+              Fecha
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </label>
+            <label>
+              Km al servicio
+              <input type="number" value={km} onChange={(e) => setKm(Number(e.target.value))} min={0} required />
+            </label>
+          </div>
+
+          <div className="grid2">
+            <label>
+              Coste (€) (opcional)
+              <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="ej: 49.90" />
+            </label>
+            <label>
+              Notas
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+          </div>
+
+          {error ? <div className="error">{error}</div> : null}
+          <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
+        </form>
+      </div>
     </div>
   )
 }

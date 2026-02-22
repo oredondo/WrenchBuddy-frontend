@@ -83,6 +83,7 @@ export async function login(usernameOrEmail: string, password: string): Promise<
   const body = new URLSearchParams()
   body.set('username', usernameOrEmail)
   body.set('password', password)
+  body.set('next', '/api/users/me/')
 
   await api('/api-auth/login/', {
     method: 'POST',
@@ -114,6 +115,18 @@ export async function updateVehicle(id: number, data: Partial<Vehicle>): Promise
 
 export async function deleteVehicle(id: number): Promise<void> {
   await api(`/api/vehicles/${id}/`, { method: 'DELETE' })
+}
+
+export async function downloadVehicleReport(vehicleId: number, filename: string): Promise<void> {
+  const res = await fetch(`/api/vehicles/${vehicleId}/report/`, { credentials: 'include' })
+  if (!res.ok) throw { status: res.status, message: 'Error al generar el informe' }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ---- Maintenance ----
@@ -162,6 +175,62 @@ export async function createEvent(data: {
   cost?: string
 }): Promise<MaintenanceEvent> {
   return api<MaintenanceEvent>('/api/maintenance/events/', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function updateEvent(id: number, data: Partial<{
+  task_code: string
+  date: string
+  km_at_service: number
+  notes: string
+  cost: string
+}>): Promise<MaintenanceEvent> {
+  return api<MaintenanceEvent>(`/api/maintenance/events/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteEvent(id: number): Promise<void> {
+  await api(`/api/maintenance/events/${id}/`, { method: 'DELETE' })
+}
+
+// ---- Accessories ----
+export type Accessory = {
+  id: number
+  vehicle: number
+  name: string
+  price: string | null
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export async function listAccessories(vehicleId: number): Promise<Accessory[]> {
+  return api<Accessory[]>(`/api/maintenance/accessories/?vehicle=${vehicleId}`)
+}
+
+export async function createAccessory(data: { vehicle: number; name: string; price?: string; notes?: string }): Promise<Accessory> {
+  return api<Accessory>('/api/maintenance/accessories/', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function updateAccessory(id: number, data: Partial<{ name: string; price: string | null; notes: string }>): Promise<Accessory> {
+  return api<Accessory>(`/api/maintenance/accessories/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteAccessory(id: number): Promise<void> {
+  await api(`/api/maintenance/accessories/${id}/`, { method: 'DELETE' })
+}
+
+// ---- AI ----
+export type Recommendation = {
+  task_code: string
+  task_name: string
+  priority: 'high' | 'medium' | 'low'
+  due_km: number | null
+  due_date: string | null
+  explanation: string
+  estimated_cost: number | null
+}
+
+export async function getWhatsDue(vehicleId: number): Promise<Recommendation[]> {
+  return api<Recommendation[]>(`/api/ai/whats-due/${vehicleId}/`)
 }
 
 // ---- Attachments ----

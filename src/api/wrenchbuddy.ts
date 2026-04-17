@@ -168,8 +168,8 @@ export async function listEvents(vehicle?: number): Promise<MaintenanceEvent[]> 
 
 export async function createEvent(data: {
   vehicle: number
-  task_code: string
-  date: string
+  task_code?: string
+  date?: string
   km_at_service: number
   notes?: string
   cost?: string
@@ -229,8 +229,55 @@ export type Recommendation = {
   estimated_cost: number | null
 }
 
+const WHATS_DUE_POLL_INTERVAL = 3000  // ms
+
 export async function getWhatsDue(vehicleId: number): Promise<Recommendation[]> {
-  return api<Recommendation[]>(`/api/ai/whats-due/${vehicleId}/`)
+  // Trigger async task
+  const { task_id } = await api<{ task_id: string; status: string }>(
+    `/api/ai/whats-due/${vehicleId}/`,
+  )
+
+  // Poll until ready (no timeout — the AI can take a while)
+  for (;;) {
+    await new Promise(r => setTimeout(r, WHATS_DUE_POLL_INTERVAL))
+    const poll = await api<{ status: string; result?: Recommendation[]; detail?: string }>(
+      `/api/ai/whats-due/${vehicleId}/poll/${task_id}/`,
+    )
+    if (poll.status === 'ready') return poll.result!
+    if (poll.status === 'failed') throw new Error(poll.detail ?? 'Error en la IA')
+  }
+}
+
+// ---- Vehicle Documents ----
+export type VehicleDocument = {
+  id: number
+  vehicle: number
+  file: string
+  file_type: 'pdf' | 'image'
+  original_filename: string
+  description: string
+  extraction_status: 'pending' | 'processing' | 'completed' | 'failed'
+  uploaded_at: string
+}
+
+export async function listVehicleDocuments(vehicleId: number): Promise<VehicleDocument[]> {
+  return api<VehicleDocument[]>(`/api/vehicles/documents/?vehicle=${vehicleId}`)
+}
+
+export async function uploadVehicleDocument(
+  vehicleId: number,
+  file: File,
+  description?: string,
+): Promise<VehicleDocument> {
+  const fd = new FormData()
+  fd.append('vehicle', String(vehicleId))
+  fd.append('file', file)
+  if (description) fd.append('description', description)
+  return api<VehicleDocument>('/api/vehicles/documents/', { method: 'POST', body: fd })
+}
+
+export async function deleteVehicleDocument(id: number): Promise<void> {
+  await api(`/api/vehicles/documents/${id}/`, { method: 'DELETE' })
 }
 
 // ---- Attachments ----

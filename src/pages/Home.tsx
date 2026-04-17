@@ -2,42 +2,84 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../state/auth'
 import logo from '../assets/wrenchbuddy-logo.png'
 
+const FEATURES = [
+  {
+    icon: '🔧',
+    label: 'Historial completo',
+    desc: 'Registra cada intervención con fecha, kilómetros, coste y adjuntos.',
+  },
+  {
+    icon: '🤖',
+    label: 'IA personalizada',
+    desc: 'Recibe recomendaciones priorizadas según tu historial y modelo de vehículo.',
+  },
+  {
+    icon: '📋',
+    label: 'Catálogo inteligente',
+    desc: 'Tareas de mantenimiento generadas por IA y adaptadas a tu vehículo concreto.',
+  },
+  {
+    icon: '📎',
+    label: 'Facturas y fotos',
+    desc: 'Adjunta documentos del taller. La IA extrae los datos automáticamente.',
+  },
+]
+
 export default function Home() {
   const { user, loading } = useAuth()
 
   return (
-    <div className="stack">
-      <div className="card" style={{ textAlign: 'center' }}>
-        <img src={logo} alt="WrenchBuddy logo" className="home-logo" />
-        <h1>WrenchBuddy</h1>
-        <p>
-          Frontend React conectado a tu backend Django REST.
+    <div className="stack" style={{ maxWidth: 820, margin: '0 auto' }}>
+
+      {/* ── Hero ── */}
+      <div className="home-hero">
+        <img src={logo} alt="WrenchBuddy" className="home-logo" style={{ marginBottom: 20 }} />
+
+        <h1 style={{ fontSize: 72, letterSpacing: 5, marginBottom: 14 }}>
+          WRENCHBUDDY
+        </h1>
+
+        <p className="home-tagline">
+          Tu moto, cada kilómetro documentado.
+          <br />
+          Mantenimiento inteligente con IA.
         </p>
-        <ul>
-          <li>Usuarios: <code>/api/users/</code> (registro) y <code>/api/users/me/</code></li>
-          <li>Vehículos: <code>/api/vehicles/</code></li>
-          <li>Mantenimiento: <code>/api/maintenance/...</code></li>
-        </ul>
+
         {loading ? (
-          <p>Cargando sesión...</p>
+          <p className="muted">Cargando sesión…</p>
         ) : user ? (
-          <p>
-            Hola, <b>{user.email}</b>. Ir a <Link to="/vehicles">Vehículos</Link>.
-          </p>
+          <div className="home-ctas">
+            <Link to="/vehicles" className="btn">
+              Mis vehículos →
+            </Link>
+          </div>
         ) : (
-          <p>
-            Para empezar: <Link to="/register">crea cuenta</Link> o <Link to="/login">entra</Link>.
-          </p>
+          <div className="home-ctas">
+            <Link to="/register" className="btn">Empezar gratis</Link>
+            <Link to="/login" className="btn secondary">Ya tengo cuenta</Link>
+          </div>
         )}
       </div>
 
-      <div className="card">
-        <h2>Nota sobre el login</h2>
-        <p>
-          Este frontend usa autenticación por <b>sesión de Django</b>. Para que funcione el login, el backend
-          debe exponer <code>/api-auth/login/</code> y <code>/api-auth/logout/</code> (ver README del frontend).
-        </p>
+      {/* ── Features ── */}
+      <div className="home-features">
+        {FEATURES.map(f => (
+          <div className="feature-card" key={f.label}>
+            <span className="feature-icon">{f.icon}</span>
+            <div>
+              <div className="feature-label">{f.label}</div>
+              <p className="feature-desc">{f.desc}</p>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* ── Footer note ── */}
+      {!user && !loading && (
+        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, paddingBottom: 8 }}>
+          Gratis durante el MVP · Solo motos por ahora · Datos privados
+        </p>
+      )}
     </div>
   )
 }

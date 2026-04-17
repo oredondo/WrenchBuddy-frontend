@@ -18,6 +18,7 @@ export default function VehicleDetail() {
   const [catalog, setCatalog] = useState<wb.TaskCatalog[]>([])
   const [attachmentsByEvent, setAttachmentsByEvent] = useState<Record<number, wb.EventAttachment[]>>({})
   const [accessories, setAccessories] = useState<wb.Accessory[]>([])
+  const [documents, setDocuments] = useState<wb.VehicleDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,16 +34,18 @@ export default function VehicleDetail() {
     setError(null)
     setLoading(true)
     try {
-      const [v, e, cat, acc] = await Promise.all([
+      const [v, e, cat, acc, docs] = await Promise.all([
         wb.getVehicle(vehicleId),
         wb.listEvents(vehicleId),
         wb.listVehicleCatalog(vehicleId),
         wb.listAccessories(vehicleId),
+        wb.listVehicleDocuments(vehicleId),
       ])
       setVehicle(v)
       setEvents(e)
       setCatalog(cat)
       setAccessories(acc)
+      setDocuments(docs)
 
       // Load attachments for all events
       const attResults = await Promise.all(e.map(ev => wb.listAttachments(ev.id)))
@@ -170,56 +173,56 @@ export default function VehicleDetail() {
 
       <TaskCatalogSection vehicleId={vehicleId} catalog={catalog} onChanged={refresh} />
 
-      <div className="grid">
-        <div className="card">
-          <h2>Registrar mantenimiento</h2>
-          <NewEventForm vehicleId={vehicleId} catalog={catalog} onCreated={refresh} />
-        </div>
+      <div className="card">
+        <h2>Registrar mantenimiento</h2>
+        <NewEventForm vehicleId={vehicleId} catalog={catalog} onCreated={refresh} />
+      </div>
 
-        <div className="card">
-          <h2>Historial</h2>
-          {events.length === 0 ? <p className="muted">Sin eventos.</p> : (
-            <ul className="list">
-              {events.map(ev => (
-                <li key={ev.id}>
-                  <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <b>{ev.task_name}</b>
-                      <div className="muted">{ev.date} · {ev.km_at_service.toLocaleString()} km · {ev.cost ? `${ev.cost} €` : '—'}</div>
-                      {ev.notes ? <div className="muted">{ev.notes}</div> : null}
-                      <EventAttachments
-                        eventId={ev.id}
-                        attachments={attachmentsByEvent[ev.id] || []}
-                        onChanged={refresh}
-                      />
-                    </div>
-                    <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-                      <button className="linklike" onClick={() => setEditingEvent(ev)}>Editar</button>
-                      <button
-                        className="linklike"
-                        style={{ color: 'var(--accent2)' }}
-                        onClick={async () => {
-                          if (!confirm('¿Eliminar este registro?')) return
-                          try {
-                            await wb.deleteEvent(ev.id)
-                            await refresh()
-                          } catch (e) {
-                            alert(errMsg(e))
-                          }
-                        }}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
+      <div className="card">
+        <h2>Historial</h2>
+        {events.length === 0 ? <p className="muted">Sin eventos.</p> : (
+          <ul className="list">
+            {events.map(ev => (
+              <li key={ev.id}>
+                <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <b>{ev.task_name}</b>
+                    <div className="muted">{ev.date} · {ev.km_at_service.toLocaleString()} km · {ev.cost ? `${ev.cost} €` : '—'}</div>
+                    {ev.notes ? <div className="muted">{ev.notes}</div> : null}
+                    <EventAttachments
+                      eventId={ev.id}
+                      attachments={attachmentsByEvent[ev.id] || []}
+                      onChanged={refresh}
+                    />
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                    <button className="linklike" onClick={() => setEditingEvent(ev)}>Editar</button>
+                    <button
+                      className="linklike"
+                      style={{ color: 'var(--danger)' }}
+                      onClick={async () => {
+                        if (!confirm('¿Eliminar este registro?')) return
+                        try {
+                          await wb.deleteEvent(ev.id)
+                          await refresh()
+                        } catch (e) {
+                          alert(errMsg(e))
+                        }
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <AccessorySection vehicleId={vehicleId} accessories={accessories} onChanged={refresh} />
+
+      <VehicleDocumentSection vehicleId={vehicleId} documents={documents} onChanged={refresh} />
 
     </div>
   )
@@ -288,16 +291,16 @@ function AccessorySection({ vehicleId, accessories, onChanged }: {
 
       {accessories.length > 0 ? (
         <>
-          <ul className="list">
+          <ul className="list" style={{ overflow: 'visible' }}>
             {accessories.map(a => (
-              <li key={a.id}>
-                <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <b>{a.name}</b>
+              <li key={a.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <b style={{ wordBreak: 'break-word' }}>{a.name}</b>
                     {a.price ? <span className="muted"> · {parseFloat(a.price).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</span> : null}
-                    {a.notes ? <div className="muted" style={{ fontSize: 13 }}>{a.notes}</div> : null}
+                    {a.notes ? <div className="muted" style={{ fontSize: 13, marginTop: 2, wordBreak: 'break-word' }}>{a.notes}</div> : null}
                   </div>
-                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     <button className="linklike" onClick={() => setEditing(a)}>Editar</button>
                     <button className="linklike" style={{ color: 'var(--accent2)' }} onClick={() => handleDelete(a.id)}>Eliminar</button>
                   </div>
@@ -592,16 +595,15 @@ function EventEditModal({ event, catalog, onClose, onSaved }: {
             </label>
           </div>
 
-          <div className="grid2">
-            <label>
-              Coste (€) (opcional)
-              <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="ej: 49.90" />
-            </label>
-            <label>
-              Notas
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-          </div>
+          <label>
+            Coste (€) (opcional)
+            <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="ej: 49.90" />
+          </label>
+
+          <label>
+            Notas
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} style={{ resize: 'vertical' }} />
+          </label>
 
           {error ? <div className="error">{error}</div> : null}
           <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
@@ -868,6 +870,145 @@ function TaskModal({ vehicleId, task, onClose, onSaved }: {
   )
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Pendiente',
+  processing: 'Procesando…',
+  completed: 'Listo',
+  failed: 'Error',
+}
+const STATUS_COLOR: Record<string, string> = {
+  pending: '#94a3b8',
+  processing: '#d97706',
+  completed: '#16a34a',
+  failed: 'var(--accent2)',
+}
+
+function VehicleDocumentSection({ vehicleId, documents, onChanged }: {
+  vehicleId: number
+  documents: wb.VehicleDocument[]
+  onChanged: () => Promise<void>
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [description, setDescription] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  async function handleUpload(e: FormEvent) {
+    e.preventDefault()
+    if (!selectedFile) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      await wb.uploadVehicleDocument(vehicleId, selectedFile, description || undefined)
+      setDescription('')
+      setSelectedFile(null)
+      setShowAdd(false)
+      await onChanged()
+    } catch (err) {
+      setUploadError(errMsg(err))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('¿Eliminar este documento?')) return
+    try {
+      await wb.deleteVehicleDocument(id)
+      await onChanged()
+    } catch (err) {
+      alert(errMsg(err))
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="row">
+        <div>
+          <h2>Documentos del vehículo</h2>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            Manuales, fichas técnicas… La IA los usará para generar tareas de mantenimiento más precisas.
+          </p>
+        </div>
+        {!showAdd && (
+          <button className="btn secondary" onClick={() => setShowAdd(true)}>+ Subir</button>
+        )}
+      </div>
+
+      {documents.length === 0 && !showAdd ? (
+        <p className="muted">Sin documentos subidos.</p>
+      ) : null}
+
+      {documents.length > 0 ? (
+        <ul className="list">
+          {documents.map(doc => (
+            <li key={doc.id}>
+              <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <b>{doc.description || doc.original_filename}</b>
+                  {doc.description ? <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>{doc.original_filename}</span> : null}
+                  <span
+                    className="pill"
+                    style={{ marginLeft: 8, background: STATUS_COLOR[doc.extraction_status], color: '#fff' }}
+                  >
+                    {STATUS_LABEL[doc.extraction_status] ?? doc.extraction_status}
+                  </span>
+                </div>
+                <button
+                  className="linklike"
+                  style={{ color: 'var(--accent2)', flexShrink: 0 }}
+                  onClick={() => handleDelete(doc.id)}
+                >
+                  Eliminar
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {showAdd ? (
+        <form
+          className="form"
+          onSubmit={handleUpload}
+          style={{ borderTop: documents.length > 0 ? '1px solid var(--border)' : 'none', marginTop: documents.length > 0 ? 12 : 0, paddingTop: documents.length > 0 ? 12 : 0 }}
+        >
+          <h3 style={{ margin: 0 }}>Subir documento</h3>
+          <label>
+            Archivo (PDF o imagen)
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              required
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+          </label>
+          <label>
+            Descripción (opcional)
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="ej: Manual de usuario, Ficha técnica"
+            />
+          </label>
+          {uploadError ? <div className="error">{uploadError}</div> : null}
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" disabled={!selectedFile || uploading}>
+              {uploading ? 'Subiendo…' : 'Subir documento'}
+            </button>
+            <button type="button" className="linklike" onClick={() => { setShowAdd(false); setUploadError(null); setSelectedFile(null) }}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </div>
+  )
+}
+
 function NewEventForm({ vehicleId, catalog, onCreated }: {
   vehicleId: number
   catalog: wb.TaskCatalog[]
@@ -885,7 +1026,10 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
   const [error, setError] = useState<string | null>(null)
 
   const effectiveCode = isCustom ? customCode : taskCode
-  const canSubmit = useMemo(() => effectiveCode.trim() && date && km >= 0, [effectiveCode, date, km])
+  const canSubmit = useMemo(
+    () => !!file || (!!effectiveCode.trim() && !!date && km >= 0),
+    [file, effectiveCode, date, km]
+  )
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -894,8 +1038,8 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
     try {
       const event = await wb.createEvent({
         vehicle: vehicleId,
-        task_code: effectiveCode,
-        date,
+        task_code: effectiveCode.trim() || undefined,
+        date: date || undefined,
         km_at_service: km,
         notes: notes || undefined,
         cost: cost || undefined,
@@ -932,7 +1076,7 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
                 setTaskCode(e.target.value)
               }
             }}
-            required={!isCustom}
+            required={!isCustom && !file}
           >
             <option value="">— Seleccionar —</option>
             {catalog.map(c => (
@@ -950,7 +1094,7 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
             value={isCustom ? customCode : taskCode}
             onChange={(e) => isCustom ? setCustomCode(e.target.value) : setTaskCode(e.target.value)}
             placeholder="ej: oil_change"
-            required
+            required={!file}
             autoFocus={isCustom}
           />
         </label>
@@ -959,11 +1103,11 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
       <div className="grid2">
         <label>
           Fecha
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required={!file} />
         </label>
         <label>
           Km al servicio
-          <input type="number" value={km} onChange={(e) => setKm(Number(e.target.value))} min={0} required />
+          <input type="number" value={km} onChange={(e) => setKm(Number(e.target.value))} min={0} required={!file} />
         </label>
       </div>
 
@@ -979,12 +1123,17 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
       </div>
 
       <label>
-        Factura (opcional)
+        Factura / foto del servicio
         <input
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
+        {file ? (
+          <span className="muted" style={{ fontSize: 12 }}>
+            La IA extraerá los datos del documento. Puedes dejar los campos anteriores vacíos.
+          </span>
+        ) : null}
       </label>
 
       {error ? <div className="error">{error}</div> : null}

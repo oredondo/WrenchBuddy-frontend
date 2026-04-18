@@ -6,7 +6,21 @@ export type User = {
   username: string
   first_name: string
   last_name: string
+  display_name: string
+  bio: string
+  location: string
+  avatar: string | null
+  show_spending: boolean
   date_joined: string
+}
+
+export type PublicProfile = {
+  username: string
+  display_name: string
+  bio: string
+  location: string
+  avatar: string | null
+  show_spending: boolean
 }
 
 export type Vehicle = {
@@ -19,11 +33,12 @@ export type Vehicle = {
   displacement?: number | null
   usage_type: 'city' | 'mixed' | 'highway'
   notes?: string
+  is_public: boolean
   created_at: string
   updated_at: string
 }
 
-export type VehicleListItem = Pick<Vehicle, 'id' | 'vehicle_type' | 'brand' | 'model' | 'year' | 'current_km'>
+export type VehicleListItem = Pick<Vehicle, 'id' | 'vehicle_type' | 'brand' | 'model' | 'year' | 'current_km' | 'is_public'>
 
 export type TaskCatalog = {
   id: number
@@ -47,6 +62,7 @@ export type MaintenanceEvent = {
   km_at_service: number
   notes: string
   cost: string | null
+  is_public: boolean
   created_at: string
   updated_at: string
 }
@@ -58,7 +74,11 @@ export type EventAttachment = {
   file_type: 'pdf' | 'image'
   original_filename: string
   uploaded_at: string
+  analysis_status: 'pending' | 'processing' | 'completed' | 'failed'
+  analysis_result: string | null
 }
+
+export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
 // ---- Auth (sesión) ----
 export async function me(): Promise<User> {
@@ -94,6 +114,30 @@ export async function login(usernameOrEmail: string, password: string): Promise<
 
 export async function logout(): Promise<void> {
   await api('/api-auth/logout/', { method: 'POST' })
+}
+
+export async function updateProfile(data: {
+  display_name?: string
+  bio?: string
+  location?: string
+  show_spending?: boolean
+  avatar?: File
+}): Promise<User> {
+  const fd = new FormData()
+  if (data.display_name !== undefined) fd.append('display_name', data.display_name)
+  if (data.bio !== undefined) fd.append('bio', data.bio)
+  if (data.location !== undefined) fd.append('location', data.location)
+  if (data.show_spending !== undefined) fd.append('show_spending', String(data.show_spending))
+  if (data.avatar) fd.append('avatar', data.avatar)
+  return api<User>('/api/users/update_profile/', { method: 'PATCH', body: fd })
+}
+
+export async function changePassword(data: { current_password: string; new_password: string }): Promise<void> {
+  await api<void>('/api/users/change_password/', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  await api<void>('/api/users/delete_account/', { method: 'DELETE', body: JSON.stringify({ password }) })
 }
 
 // ---- Vehicles ----
@@ -183,6 +227,7 @@ export async function updateEvent(id: number, data: Partial<{
   km_at_service: number
   notes: string
   cost: string
+  is_public: boolean
 }>): Promise<MaintenanceEvent> {
   return api<MaintenanceEvent>(`/api/maintenance/events/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })
 }
@@ -218,34 +263,17 @@ export async function deleteAccessory(id: number): Promise<void> {
   await api(`/api/maintenance/accessories/${id}/`, { method: 'DELETE' })
 }
 
-// ---- AI ----
-export type Recommendation = {
-  task_code: string
-  task_name: string
-  priority: 'high' | 'medium' | 'low'
-  due_km: number | null
-  due_date: string | null
-  explanation: string
-  estimated_cost: number | null
-}
-
-const WHATS_DUE_POLL_INTERVAL = 3000  // ms
-
-export async function getWhatsDue(vehicleId: number): Promise<Recommendation[]> {
-  // Trigger async task
-  const { task_id } = await api<{ task_id: string; status: string }>(
-    `/api/ai/whats-due/${vehicleId}/`,
-  )
-
-  // Poll until ready (no timeout — the AI can take a while)
-  for (;;) {
-    await new Promise(r => setTimeout(r, WHATS_DUE_POLL_INTERVAL))
-    const poll = await api<{ status: string; result?: Recommendation[]; detail?: string }>(
-      `/api/ai/whats-due/${vehicleId}/poll/${task_id}/`,
-    )
-    if (poll.status === 'ready') return poll.result!
-    if (poll.status === 'failed') throw new Error(poll.detail ?? 'Error en la IA')
-  }
+// ---- AI Chat ----
+export async function chatWithAI(
+  vehicleId: number,
+  message: string,
+  history: ChatMessage[],
+): Promise<string> {
+  const data = await api<{ response: string }>(`/api/ai/chat/${vehicleId}/`, {
+    method: 'POST',
+    body: JSON.stringify({ message, history }),
+  })
+  return data.response
 }
 
 // ---- Vehicle Documents ----
@@ -280,6 +308,50 @@ export async function deleteVehicleDocument(id: number): Promise<void> {
   await api(`/api/vehicles/documents/${id}/`, { method: 'DELETE' })
 }
 
+// ---- Garage Photos ----
+export type GaragePhoto = {
+  id: number
+  vehicle: number
+  image: string
+  caption: string
+  description: string
+  is_public: boolean
+  is_cover: boolean
+  uploaded_at: string
+}
+
+export async function listGaragePhotos(vehicleId?: number): Promise<GaragePhoto[]> {
+  const qs = vehicleId ? `?vehicle=${vehicleId}` : ''
+  return api<GaragePhoto[]>(`/api/social/photos/${qs}`)
+}
+
+export async function uploadGaragePhoto(
+  vehicleId: number,
+  file: File,
+  caption?: string,
+  description?: string,
+  isPublic = true,
+): Promise<GaragePhoto> {
+  const fd = new FormData()
+  fd.append('vehicle', String(vehicleId))
+  fd.append('image', file)
+  fd.append('is_public', String(isPublic))
+  if (caption) fd.append('caption', caption)
+  if (description) fd.append('description', description)
+  return api<GaragePhoto>('/api/social/photos/', { method: 'POST', body: fd })
+}
+
+export async function updateGaragePhoto(
+  id: number,
+  data: Partial<Pick<GaragePhoto, 'caption' | 'description' | 'is_public' | 'is_cover'>>,
+): Promise<GaragePhoto> {
+  return api<GaragePhoto>(`/api/social/photos/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteGaragePhoto(id: number): Promise<void> {
+  await api(`/api/social/photos/${id}/`, { method: 'DELETE' })
+}
+
 // ---- Attachments ----
 export async function listAttachments(eventId: number): Promise<EventAttachment[]> {
   return api<EventAttachment[]>(`/api/maintenance/attachments/?event=${eventId}`)
@@ -294,4 +366,174 @@ export async function uploadAttachment(eventId: number, file: File): Promise<Eve
 
 export async function deleteAttachment(id: number): Promise<void> {
   await api(`/api/maintenance/attachments/${id}/`, { method: 'DELETE' })
+}
+
+// ---- Social — Tipos públicos ----
+
+export type PublicGaragePhoto = {
+  id: number
+  image: string
+  caption: string
+  description: string
+  is_cover: boolean
+  uploaded_at: string
+  likes_count: number
+}
+
+export type PublicMaintenanceEvent = {
+  id: number
+  task_code: string
+  date: string
+  km_at_service: number
+  notes: string
+  cost: string | null
+}
+
+export type PublicAccessory = {
+  id: number
+  name: string
+  price: string | null
+  notes: string
+}
+
+export type PublicVehicle = {
+  id: number
+  vehicle_type: 'motorcycle' | 'car'
+  brand: string
+  model: string
+  year: number
+  current_km: number
+  displacement?: number | null
+  usage_type: string
+  notes: string
+  likes_count: number
+  comments_count: number
+  garage_photos: PublicGaragePhoto[]
+  maintenance_events: PublicMaintenanceEvent[]
+  accessories: PublicAccessory[]
+}
+
+export type GarageListItem = {
+  username: string
+  vehicle_count: number
+  preview_photo: PublicGaragePhoto | null
+}
+
+export type GarageProfile = {
+  username: string
+  profile: PublicProfile
+  vehicles: PublicVehicle[]
+}
+
+export type VehicleComment = {
+  id: number
+  username: string
+  vehicle: number
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export type GaragePhotoComment = {
+  id: number
+  username: string
+  photo: number
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+// ---- Social — Garage público ----
+
+export async function listGarages(): Promise<GarageListItem[]> {
+  return api<GarageListItem[]>('/api/garage/')
+}
+
+export async function getGarageProfile(username: string): Promise<GarageProfile> {
+  return api<GarageProfile>(`/api/garage/${username}/`)
+}
+
+// ---- Social — Follow ----
+
+export async function followUser(username: string): Promise<void> {
+  await api(`/api/social/follow/${username}/`, { method: 'POST' })
+}
+
+export async function unfollowUser(username: string): Promise<void> {
+  await api(`/api/social/follow/${username}/`, { method: 'DELETE' })
+}
+
+export async function getFollowers(username: string): Promise<string[]> {
+  return api<string[]>(`/api/social/followers/${username}/`)
+}
+
+export async function getFollowing(username: string): Promise<string[]> {
+  return api<string[]>(`/api/social/following/${username}/`)
+}
+
+// ---- Social — Feed ----
+
+export type FeedVehicle = {
+  id: number
+  owner: string
+  brand: string
+  model: string
+  year: number
+  current_km: number
+  preview_photo: PublicGaragePhoto | null
+  created_at: string
+}
+
+export async function getFeed(): Promise<FeedVehicle[]> {
+  return api<FeedVehicle[]>('/api/social/feed/')
+}
+
+// ---- Social — Likes ----
+
+export async function likeVehicle(vehicleId: number): Promise<{ likes: number }> {
+  return api<{ likes: number }>(`/api/social/vehicles/${vehicleId}/like/`, { method: 'POST' })
+}
+
+export async function unlikeVehicle(vehicleId: number): Promise<{ likes: number }> {
+  return api<{ likes: number }>(`/api/social/vehicles/${vehicleId}/like/`, { method: 'DELETE' })
+}
+
+export async function likePhoto(photoId: number): Promise<{ likes: number }> {
+  return api<{ likes: number }>(`/api/social/photos/${photoId}/like/`, { method: 'POST' })
+}
+
+export async function unlikePhoto(photoId: number): Promise<{ likes: number }> {
+  return api<{ likes: number }>(`/api/social/photos/${photoId}/like/`, { method: 'DELETE' })
+}
+
+// ---- Social — Comentarios ----
+
+export async function listVehicleComments(vehicleId: number): Promise<VehicleComment[]> {
+  return api<VehicleComment[]>(`/api/social/vehicle-comments/?vehicle=${vehicleId}`)
+}
+
+export async function createVehicleComment(vehicleId: number, body: string): Promise<VehicleComment> {
+  return api<VehicleComment>('/api/social/vehicle-comments/', {
+    method: 'POST',
+    body: JSON.stringify({ vehicle: vehicleId, body }),
+  })
+}
+
+export async function deleteVehicleComment(id: number): Promise<void> {
+  await api(`/api/social/vehicle-comments/${id}/`, { method: 'DELETE' })
+}
+
+export async function listPhotoComments(photoId: number): Promise<GaragePhotoComment[]> {
+  return api<GaragePhotoComment[]>(`/api/social/photo-comments/?photo=${photoId}`)
+}
+
+export async function createPhotoComment(photoId: number, body: string): Promise<GaragePhotoComment> {
+  return api<GaragePhotoComment>('/api/social/photo-comments/', {
+    method: 'POST',
+    body: JSON.stringify({ photo: photoId, body }),
+  })
+}
+
+export async function deletePhotoComment(id: number): Promise<void> {
+  await api(`/api/social/photo-comments/${id}/`, { method: 'DELETE' })
 }

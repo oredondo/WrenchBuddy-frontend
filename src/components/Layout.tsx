@@ -15,12 +15,28 @@ export default function Layout() {
         <nav className="nav">
           <NavLink to="/" end>Inicio</NavLink>
 
+          <span className="nav-sep" />
+          <NavLink to="/garage">Garajes</NavLink>
+
           {user ? (
             <>
               <span className="nav-sep" />
-              <NavLink to="/vehicles">Vehículos</NavLink>
+              <NavLink to={`/migaraje/${user.username}`}>Mi garaje</NavLink>
+              <NavLink to="/feed">Feed</NavLink>
+              <NavLink to="/profile">Perfil</NavLink>
               <span className="nav-sep" />
-              <button className="linklike" onClick={() => logout()}>Salir</button>
+              <button
+                onClick={() => logout()}
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  padding: '6px 13px', borderRadius: 'var(--radius-sm)',
+                  fontSize: 13, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+                  color: 'var(--text2)', letterSpacing: '.3px',
+                  transition: 'color .14s, background .14s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.background = 'rgba(255,255,255,.05)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.background = 'transparent' }}
+              >Salir</button>
             </>
           ) : (
             <>

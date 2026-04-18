@@ -7,6 +7,7 @@ type AuthState = {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
+  setUser: (u: wb.User) => void
   login: (emailOrUsername: string, password: string) => Promise<void>
   logout: () => Promise<void>
   register: (data: {
@@ -15,7 +16,7 @@ type AuthState = {
     password: string
     first_name?: string
     last_name?: string
-  }) => Promise<void>
+  }) => Promise<'logged_in' | 'created'>
 }
 
 const Ctx = createContext<AuthState | null>(null)
@@ -75,16 +76,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string
     first_name?: string
     last_name?: string
-  }) => {
+  }): Promise<'logged_in' | 'created'> => {
     setError(null)
     try {
       await wb.registerUser(data)
-      // tras registro, intentamos login automático
-      await wb.login(data.email, data.password)
-      await refresh()
     } catch (e) {
       setError(humanizeError(e))
       throw e
+    }
+    // cuenta creada — intentamos auto-login (no lanzamos si falla)
+    try {
+      await wb.login(data.email, data.password)
+      await refresh()
+      return 'logged_in'
+    } catch {
+      return 'created'
     }
   }, [refresh])
 
@@ -93,10 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     refresh,
+    setUser,
     login,
     logout,
     register,
-  }), [user, loading, error, refresh, login, logout, register])
+  }), [user, loading, error, refresh, setUser, login, logout, register])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

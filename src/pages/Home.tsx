@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../state/auth'
 import logo from '../assets/wrenchbuddy-logo.png'
 
@@ -23,10 +24,37 @@ const FEATURES = [
     label: 'Facturas y fotos',
     desc: 'Adjunta documentos del taller. La IA extrae los datos automáticamente.',
   },
+  {
+    icon: '🏍',
+    label: 'Garaje público',
+    desc: 'Muestra tu vehículo al mundo. Controla qué eventos y costes son visibles.',
+  },
+  {
+    icon: '👥',
+    label: 'Red social de garajes',
+    desc: 'Sigue a otros entusiastas, ve su feed de vehículos y modificaciones.',
+  },
+  {
+    icon: '❤️',
+    label: 'Likes y comentarios',
+    desc: 'Interactúa con los vehículos y fotos de la comunidad.',
+  },
+  {
+    icon: '📄',
+    label: 'Informe PDF',
+    desc: 'Descarga un resumen completo de tu vehículo con historial y accesorios.',
+  },
 ]
 
 export default function Home() {
   const { user, loading } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!loading && user) navigate('/feed', { replace: true })
+  }, [user, loading, navigate])
+
+  if (!loading && user) return null
 
   return (
     <div className="stack" style={{ maxWidth: 820, margin: '0 auto' }}>
@@ -47,12 +75,6 @@ export default function Home() {
 
         {loading ? (
           <p className="muted">Cargando sesión…</p>
-        ) : user ? (
-          <div className="home-ctas">
-            <Link to="/vehicles" className="btn">
-              Mis vehículos →
-            </Link>
-          </div>
         ) : (
           <div className="home-ctas">
             <Link to="/register" className="btn">Empezar gratis</Link>

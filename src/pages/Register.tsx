@@ -17,14 +17,16 @@ export default function Register() {
     e.preventDefault()
     setBusy(true)
     try {
-      await register({
+      const result = await register({
         email,
         username,
         password,
         first_name: firstName || undefined,
         last_name: lastName || undefined,
       })
-      navigate('/vehicles')
+      navigate(result === 'logged_in' ? '/vehicles' : '/login', { replace: true })
+    } catch {
+      // error ya visible en auth.error
     } finally {
       setBusy(false)
     }

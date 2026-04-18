@@ -130,6 +130,7 @@ function VehicleCreateDialog({ onClose, onCreated }: { onClose: () => void; onCr
         displacement: displacement === '' ? null : displacement,
         usage_type: usageType,
         notes: notes || undefined,
+        is_public: false,
       }
       await wb.createVehicle(payload)
       await onCreated()

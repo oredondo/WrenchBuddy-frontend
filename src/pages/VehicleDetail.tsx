@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as wb from '../api/wrenchbuddy'
+import type { ChatMessage } from '../api/wrenchbuddy'
 import type { ApiError } from '../api/client'
+import { useAuth } from '../state/auth'
 
 function errMsg(e: unknown) {
   const a = e as ApiError
@@ -12,6 +14,8 @@ export default function VehicleDetail() {
   const { id } = useParams()
   const vehicleId = Number(id)
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const garageUrl = user ? `/migaraje/${user.username}` : '/'
 
   const [vehicle, setVehicle] = useState<wb.Vehicle | null>(null)
   const [events, setEvents] = useState<wb.MaintenanceEvent[]>([])
@@ -67,14 +71,14 @@ export default function VehicleDetail() {
   async function onDelete() {
     if (!confirm('¿Eliminar este vehículo?')) return
     await wb.deleteVehicle(vehicleId)
-    navigate('/vehicles')
+    navigate(garageUrl)
   }
 
   return (
     <div className="stack">
       <div className="row">
         <div>
-          <p className="muted"><Link to="/vehicles">← Volver</Link></p>
+          <p className="muted"><Link to={garageUrl}>← Mi garaje</Link></p>
           <h1>{vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehículo'}</h1>
         </div>
         {vehicle ? (
@@ -155,10 +159,22 @@ export default function VehicleDetail() {
             )}
             {vehicle.displacement ? <p>{vehicle.displacement} cc</p> : null}
             {vehicle.notes ? <p className="muted">{vehicle.notes}</p> : null}
+            <PublicToggle
+              isPublic={vehicle.is_public}
+              label="vehículo"
+              onToggle={async () => {
+                await wb.updateVehicle(vehicleId, { is_public: !vehicle.is_public })
+                await refresh()
+              }}
+            />
           </div>
+
+          <GaragePhotoSection vehicleId={vehicleId} />
 
         </div>
       ) : null}
+
+      <AIChatSection vehicleId={vehicleId} />
 
       {editingEvent ? (
         <EventEditModal
@@ -169,8 +185,6 @@ export default function VehicleDetail() {
         />
       ) : null}
 
-      <WhatsDueSection vehicleId={vehicleId} />
-
       <TaskCatalogSection vehicleId={vehicleId} catalog={catalog} onChanged={refresh} />
 
       <div className="card">
@@ -179,7 +193,22 @@ export default function VehicleDetail() {
       </div>
 
       <div className="card">
-        <h2>Historial</h2>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>Historial</h2>
+          {events.length > 0 && events.some(ev => !ev.is_public) && (
+            <button
+              className="btn secondary"
+              style={{ fontSize: 12 }}
+              onClick={async () => {
+                const privados = events.filter(ev => !ev.is_public)
+                await Promise.all(privados.map(ev => wb.updateEvent(ev.id, { is_public: true })))
+                await refresh()
+              }}
+            >
+              🌐 Hacer todo público
+            </button>
+          )}
+        </div>
         {events.length === 0 ? <p className="muted">Sin eventos.</p> : (
           <ul className="list">
             {events.map(ev => (
@@ -195,7 +224,15 @@ export default function VehicleDetail() {
                       onChanged={refresh}
                     />
                   </div>
-                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                  <div className="row" style={{ gap: 8, flexShrink: 0, alignItems: 'center' }}>
+                    <PublicToggle
+                      isPublic={ev.is_public}
+                      label="evento"
+                      onToggle={async () => {
+                        await wb.updateEvent(ev.id, { is_public: !ev.is_public })
+                        await refresh()
+                      }}
+                    />
                     <button className="linklike" onClick={() => setEditingEvent(ev)}>Editar</button>
                     <button
                       className="linklike"
@@ -224,6 +261,355 @@ export default function VehicleDetail() {
 
       <VehicleDocumentSection vehicleId={vehicleId} documents={documents} onChanged={refresh} />
 
+    </div>
+  )
+}
+
+function GaragePhotoSection({ vehicleId }: { vehicleId: number }) {
+  const [photos, setPhotos] = useState<wb.GaragePhoto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+
+  async function refresh() {
+    const data = await wb.listGaragePhotos(vehicleId)
+    setPhotos(data)
+    setLoading(false)
+  }
+
+  useEffect(() => { void refresh() }, [vehicleId])
+
+  async function handleDelete(id: number) {
+    if (!confirm('¿Eliminar esta foto?')) return
+    try { await wb.deleteGaragePhoto(id); await refresh() } catch (e) { alert(errMsg(e)) }
+  }
+
+  async function togglePublic(photo: wb.GaragePhoto) {
+    try {
+      await wb.updateGaragePhoto(photo.id, { is_public: !photo.is_public })
+      await refresh()
+    } catch { /* ignore */ }
+  }
+
+  async function setCover(photo: wb.GaragePhoto) {
+    if (photo.is_cover) return
+    try {
+      await wb.updateGaragePhoto(photo.id, { is_cover: true })
+      await refresh()
+    } catch (e) { alert(errMsg(e)) }
+  }
+
+  return (
+    <div className="card">
+      <div className="row">
+        <h2>Fotos</h2>
+        <button className="btn secondary" onClick={() => setShowModal(true)}>+ Añadir</button>
+      </div>
+
+      {loading && <p className="muted">Cargando…</p>}
+
+      {!loading && photos.length === 0 && (
+        <p className="muted" style={{ fontSize: 13 }}>Sin fotos aún.</p>
+      )}
+
+      {photos.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {photos.map(p => (
+            <div key={p.id} style={{
+              background: 'var(--panel2)',
+              border: `1px solid ${p.is_cover ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-sm)',
+              overflow: 'hidden',
+            }}>
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={p.image}
+                  alt={p.caption || 'Foto'}
+                  style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+                />
+                {p.is_cover && (
+                  <span style={{
+                    position: 'absolute', top: 8, left: 8,
+                    background: 'var(--accent)', color: '#060810',
+                    fontSize: 10, fontWeight: 700, letterSpacing: '.6px',
+                    padding: '3px 8px', borderRadius: 4, textTransform: 'uppercase',
+                  }}>
+                    Portada
+                  </span>
+                )}
+              </div>
+              <div style={{ padding: '8px 10px' }}>
+                {p.caption && (
+                  <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                    {p.caption}
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {!p.is_cover && (
+                    <button
+                      className="linklike"
+                      onClick={() => setCover(p)}
+                      style={{ fontSize: 11, color: 'var(--accent)' }}
+                    >
+                      ★ Portada
+                    </button>
+                  )}
+                  <button
+                    className="linklike"
+                    onClick={() => togglePublic(p)}
+                    style={{ fontSize: 11, color: p.is_public ? 'var(--success)' : 'var(--muted)' }}
+                  >
+                    {p.is_public ? '🌐 Pública' : '🔒 Privada'}
+                  </button>
+                  <button
+                    className="linklike"
+                    onClick={() => handleDelete(p.id)}
+                    style={{ fontSize: 11, color: 'var(--danger)' }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <GaragePhotoModal
+          vehicleId={vehicleId}
+          onClose={() => setShowModal(false)}
+          onSaved={async () => { setShowModal(false); await refresh() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function GaragePhotoModal({ vehicleId, onClose, onSaved }: {
+  vehicleId: number
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const [caption, setCaption] = useState('')
+  const [description, setDescription] = useState('')
+  const [isPublic, setIsPublic] = useState(true)
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null
+    setFile(f)
+    setPreview(f ? URL.createObjectURL(f) : null)
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      await wb.uploadGaragePhoto(vehicleId, file, caption || undefined, description || undefined, isPublic)
+      await onSaved()
+    } catch (e2) { setError(errMsg(e2)) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="modalBackdrop" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={e => e.stopPropagation()}>
+        <div className="row">
+          <h2>Nueva foto</h2>
+          <button className="linklike" onClick={onClose}>Cerrar</button>
+        </div>
+        <form className="form" onSubmit={onSubmit}>
+          <label>
+            Imagen
+            <input type="file" accept=".png,.jpg,.jpeg,.webp" required onChange={onFileChange} />
+          </label>
+
+          {preview && (
+            <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+          )}
+
+          <label>
+            Título (opcional)
+            <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="ej: Recién lavada" maxLength={200} />
+          </label>
+
+          <label>
+            Descripción (opcional)
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Contexto, evento…" />
+          </label>
+
+          <label style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
+            Visible en el garaje público
+          </label>
+
+          {error && <div className="error">{error}</div>}
+          <button className="btn" disabled={!file || busy}>{busy ? 'Subiendo…' : 'Subir foto'}</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function PublicToggle({ isPublic, label, onToggle }: {
+  isPublic: boolean
+  label: string
+  onToggle: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+
+  async function handle() {
+    setBusy(true)
+    try { await onToggle() } catch { /* ignore */ } finally { setBusy(false) }
+  }
+
+  return (
+    <button
+      className="linklike"
+      onClick={handle}
+      disabled={busy}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 12,
+        color: isPublic ? 'var(--success)' : 'var(--muted)',
+        marginTop: 4,
+      }}
+      title={isPublic ? `Hacer ${label} privado` : `Hacer ${label} público`}
+    >
+      {isPublic ? '🌐 Público' : '🔒 Privado'}
+    </button>
+  )
+}
+
+function AIChatSection({ vehicleId }: { vehicleId: number }) {
+  const [history, setHistory] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [history, busy])
+
+  async function send(e: FormEvent) {
+    e.preventDefault()
+    const msg = input.trim()
+    if (!msg || busy) return
+
+    const userMsg: ChatMessage = { role: 'user', content: msg }
+    setHistory(h => [...h, userMsg])
+    setInput('')
+    setBusy(true)
+    setError(null)
+
+    try {
+      const reply = await wb.chatWithAI(vehicleId, msg, [...history, userMsg])
+      setHistory(h => [...h, { role: 'assistant', content: reply }])
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function clear() {
+    setHistory([])
+    setError(null)
+  }
+
+  return (
+    <div className="card">
+      <div className="row" style={{ marginBottom: 14 }}>
+        <h2>Chat con IA</h2>
+        {history.length > 0 && (
+          <button className="linklike" onClick={clear}>Limpiar</button>
+        )}
+      </div>
+
+      {history.length === 0 && (
+        <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+          Pregunta sobre tu vehículo: historial, gastos, próximos mantenimientos…
+          La IA consultará tu base de datos en tiempo real.
+        </p>
+      )}
+
+      {history.length > 0 && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          marginBottom: 14,
+          maxHeight: 420,
+          overflowY: 'auto',
+          paddingRight: 4,
+        }}>
+          {history.map((msg, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              }}
+            >
+              <div style={{
+                maxWidth: '82%',
+                padding: '9px 13px',
+                borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                background: msg.role === 'user'
+                  ? 'var(--accent-dim)'
+                  : 'var(--panel2)',
+                border: `1px solid ${msg.role === 'user' ? 'rgba(242,162,0,.25)' : 'var(--border)'}`,
+                fontSize: 14,
+                lineHeight: 1.55,
+                whiteSpace: 'pre-wrap',
+                color: msg.role === 'user' ? 'var(--accent)' : 'var(--text)',
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+
+          {busy && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{
+                padding: '9px 13px',
+                borderRadius: '12px 12px 12px 4px',
+                background: 'var(--panel2)',
+                border: '1px solid var(--border)',
+                color: 'var(--muted)',
+                fontSize: 13,
+              }}>
+                Consultando base de datos…
+              </div>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+      )}
+
+      {error && <div className="error" style={{ marginBottom: 10 }}>{error}</div>}
+
+      <form onSubmit={send} style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="¿Cuánto he gastado este año? ¿Cuándo toca cambiar el aceite?"
+          disabled={busy}
+          style={{ flex: 1 }}
+          autoComplete="off"
+        />
+        <button className="btn" disabled={!input.trim() || busy}>
+          {busy ? '…' : 'Enviar'}
+        </button>
+      </form>
     </div>
   )
 }
@@ -420,85 +806,6 @@ function AccessoryModal({ vehicleId, accessory, onClose, onSaved }: {
   )
 }
 
-const PRIORITY_LABEL: Record<string, string> = {
-  high: 'Urgente',
-  medium: 'Próximamente',
-  low: 'Pendiente',
-}
-const PRIORITY_COLOR: Record<string, string> = {
-  high: 'var(--accent2)',
-  medium: '#d97706',
-  low: 'var(--accent)',
-}
-
-function WhatsDueSection({ vehicleId }: { vehicleId: number }) {
-  const [recs, setRecs] = useState<wb.Recommendation[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function ask() {
-    setLoading(true)
-    setError(null)
-    setRecs(null)
-    try {
-      setRecs(await wb.getWhatsDue(vehicleId))
-    } catch (e) {
-      setError(errMsg(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="card">
-      <div className="row">
-        <h2>¿Qué me toca hacer?</h2>
-        <button className="btn" onClick={ask} disabled={loading}>
-          {loading ? 'Consultando IA…' : 'Consultar IA'}
-        </button>
-      </div>
-
-      {error ? <div className="error">{error}</div> : null}
-
-      {loading ? (
-        <p className="muted">Analizando historial y catálogo…</p>
-      ) : null}
-
-      {recs !== null && recs.length === 0 ? (
-        <p className="muted">Todo al día, no hay tareas urgentes.</p>
-      ) : null}
-
-      {recs && recs.length > 0 ? (
-        <ul className="list">
-          {recs.map((r) => (
-            <li key={r.task_code}>
-              <div className="row" style={{ alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                    <b>{r.task_name}</b>
-                    <span
-                      className="pill"
-                      style={{ background: PRIORITY_COLOR[r.priority], color: '#fff' }}
-                    >
-                      {PRIORITY_LABEL[r.priority] ?? r.priority}
-                    </span>
-                  </div>
-                  <div className="muted" style={{ marginTop: 4 }}>{r.explanation}</div>
-                  <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                    {r.due_km ? `Vence ~${r.due_km.toLocaleString()} km` : ''}
-                    {r.due_km && r.due_date ? ' · ' : ''}
-                    {r.due_date ? `antes del ${r.due_date}` : ''}
-                    {r.estimated_cost ? ` · ~${r.estimated_cost} €` : ''}
-                  </div>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  )
-}
 
 function EventEditModal({ event, catalog, onClose, onSaved }: {
   event: wb.MaintenanceEvent
@@ -613,6 +920,80 @@ function EventEditModal({ event, catalog, onClose, onSaved }: {
   )
 }
 
+const ANALYSIS_STATUS_LABEL: Record<wb.EventAttachment['analysis_status'], string> = {
+  pending: 'Pendiente',
+  processing: 'Analizando…',
+  completed: 'Analizado',
+  failed: 'Error IA',
+}
+const ANALYSIS_STATUS_COLOR: Record<wb.EventAttachment['analysis_status'], string> = {
+  pending: 'var(--muted)',
+  processing: 'var(--accent)',
+  completed: 'var(--success)',
+  failed: 'var(--danger)',
+}
+
+function parseAnalysisResult(raw: string): Record<string, unknown> | null {
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+function AnalysisResult({ att }: { att: wb.EventAttachment }) {
+  const [open, setOpen] = useState(false)
+  if (att.analysis_status !== 'completed' || !att.analysis_result) return null
+
+  const parsed = parseAnalysisResult(att.analysis_result)
+  const fields: { label: string; key: string }[] = [
+    { label: 'Tipo', key: 'tipo_servicio' },
+    { label: 'Taller', key: 'taller' },
+    { label: 'Fecha', key: 'fecha' },
+    { label: 'Km', key: 'km' },
+    { label: 'Coste', key: 'coste_total' },
+    { label: 'Piezas', key: 'piezas' },
+    { label: 'Observaciones', key: 'observaciones' },
+  ]
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button
+        className="linklike"
+        onClick={() => setOpen(o => !o)}
+        style={{ fontSize: 11, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}
+      >
+        🤖 {open ? 'Ocultar análisis IA' : 'Ver análisis IA'}
+      </button>
+      {open && (
+        <div style={{
+          marginTop: 6,
+          background: 'var(--panel2)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 10px',
+          fontSize: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}>
+          {parsed ? (
+            fields.map(({ label, key }) => {
+              const val = parsed[key]
+              if (!val) return null
+              const display = Array.isArray(val) ? (val as string[]).join(', ') : String(val)
+              return (
+                <div key={key} style={{ display: 'flex', gap: 8 }}>
+                  <span style={{ color: 'var(--muted)', minWidth: 90, flexShrink: 0 }}>{label}</span>
+                  <span style={{ color: 'var(--text2)' }}>{display}</span>
+                </div>
+              )
+            })
+          ) : (
+            <p style={{ margin: 0, color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{att.analysis_result}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventAttachments({ eventId, attachments, onChanged }: {
   eventId: number
   attachments: wb.EventAttachment[]
@@ -649,11 +1030,22 @@ function EventAttachments({ eventId, attachments, onChanged }: {
     <div className="attachments">
       {attachments.length > 0 ? (
         attachments.map(att => (
-          <div key={att.id} className="attachment-item">
-            <span>{att.file_type === 'pdf' ? '📄' : '🖼️'}</span>
-            <a href={att.file} target="_blank" rel="noopener noreferrer">{att.original_filename}</a>
-            <span className="muted" style={{ fontSize: 12 }}>{new Date(att.uploaded_at).toLocaleDateString()}</span>
-            <button className="linklike" onClick={() => handleDelete(att.id)}>Eliminar</button>
+          <div key={att.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="attachment-item">
+              <span>{att.file_type === 'pdf' ? '📄' : '🖼️'}</span>
+              <a href={att.file} target="_blank" rel="noopener noreferrer">{att.original_filename}</a>
+              <span style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                background: 'transparent',
+                color: ANALYSIS_STATUS_COLOR[att.analysis_status],
+                border: `1px solid ${ANALYSIS_STATUS_COLOR[att.analysis_status]}`,
+                flexShrink: 0,
+              }}>
+                {ANALYSIS_STATUS_LABEL[att.analysis_status]}
+              </span>
+              <button className="linklike" onClick={() => handleDelete(att.id)}>Eliminar</button>
+            </div>
+            <AnalysisResult att={att} />
           </div>
         ))
       ) : null}

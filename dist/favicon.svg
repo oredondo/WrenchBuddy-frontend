@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="s" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#CDD6DE"/>
+      <stop offset="100%" stop-color="#6E7E8C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="16" cy="16" r="16" fill="#060810"/>
+
+  <!--
+    Wrench designed horizontally, center of mass at (16,16), then rotated 45°
+    so head goes top-left and handle goes bottom-right (same as 🔧).
+
+    Horizontal layout:
+      Head ring  : cx=10, cy=16  — left side
+      Handle rect: x=15 → x=27  — right side (overlaps ring edge at x=16)
+    Bounding box : x=4 → x=27, center x=15.5 ≈ 16  ✓
+  -->
+  <g transform="rotate(45,16,16)">
+    <circle cx="10" cy="16" r="6.5" fill="url(#s)"/>
+    <circle cx="10" cy="16" r="3"   fill="#060810"/>
+    <rect   x="15" y="13.2" width="12" height="5.6" rx="2.8" fill="url(#s)"/>
+  </g>
+</svg>

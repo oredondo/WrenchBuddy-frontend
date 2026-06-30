@@ -718,3 +718,88 @@ code {
   .home-ctas { flex-direction: column; align-items: stretch; }
   .home-ctas .btn { justify-content: center; }
 }
+
+/* ─── AI MARKDOWN ─── */
+
+.ai-markdown { line-height: 1.6; }
+.ai-markdown > *:first-child { margin-top: 0; }
+.ai-markdown > *:last-child  { margin-bottom: 0; }
+
+.ai-markdown p  { margin: 0 0 8px; }
+.ai-markdown ul,
+.ai-markdown ol { margin: 4px 0 8px; padding-left: 20px; }
+.ai-markdown li { margin-bottom: 3px; }
+
+.ai-markdown h1,
+.ai-markdown h2,
+.ai-markdown h3 {
+  font-family: 'Bebas Neue', sans-serif;
+  color: var(--accent);
+  letter-spacing: .04em;
+  margin: 12px 0 4px;
+}
+.ai-markdown h1 { font-size: 18px; }
+.ai-markdown h2 { font-size: 16px; }
+.ai-markdown h3 { font-size: 14px; }
+
+.ai-markdown strong { color: var(--accent); font-weight: 700; }
+.ai-markdown em     { color: var(--muted); font-style: italic; }
+
+.ai-markdown code {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--accent);
+}
+.ai-markdown pre {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.ai-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.ai-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--muted);
+}
+
+.ai-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+
+.ai-markdown a { color: var(--accent); text-decoration: none; }
+.ai-markdown a:hover { text-decoration: underline; }
+
+.ai-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 8px 0;
+}
+.ai-markdown th,
+.ai-markdown td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  text-align: left;
+}
+.ai-markdown th {
+  background: rgba(255,255,255,.05);
+  color: var(--accent);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+}

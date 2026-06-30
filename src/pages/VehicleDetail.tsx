@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
 import * as wb from '../api/wrenchbuddy'
 import type { ChatMessage } from '../api/wrenchbuddy'
 import type { ApiError } from '../api/client'
@@ -492,10 +493,11 @@ function AIChatSection({ vehicleId }: { vehicleId: number }) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = messagesRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [history, busy])
 
   async function send(e: FormEvent) {
@@ -541,7 +543,7 @@ function AIChatSection({ vehicleId }: { vehicleId: number }) {
       )}
 
       {history.length > 0 && (
-        <div style={{
+        <div ref={messagesRef} style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 10,
@@ -568,10 +570,15 @@ function AIChatSection({ vehicleId }: { vehicleId: number }) {
                 border: `1px solid ${msg.role === 'user' ? 'rgba(242,162,0,.25)' : 'var(--border)'}`,
                 fontSize: 14,
                 lineHeight: 1.55,
-                whiteSpace: 'pre-wrap',
                 color: msg.role === 'user' ? 'var(--accent)' : 'var(--text)',
               }}>
-                {msg.content}
+                {msg.role === 'user' ? (
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+                ) : (
+                  <div className="ai-markdown">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -591,7 +598,6 @@ function AIChatSection({ vehicleId }: { vehicleId: number }) {
             </div>
           )}
 
-          <div ref={bottomRef} />
         </div>
       )}
 
@@ -1416,6 +1422,8 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const effectiveCode = isCustom ? customCode : taskCode
   const canSubmit = useMemo(
@@ -1427,6 +1435,7 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    setSaved(false)
     try {
       const event = await wb.createEvent({
         vehicle: vehicleId,
@@ -1439,12 +1448,13 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
       if (file) {
         await wb.uploadAttachment(event.id, file)
       }
-      setTaskCode('')
-      setCustomCode('')
-      setIsCustom(false)
+      // Reset only ephemeral fields — keep task, date and km so the user
+      // can immediately register the next maintenance without re-entering them.
       setNotes('')
       setCost('')
       setFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setSaved(true)
       await onCreated()
     } catch (e2) {
       setError(errMsg(e2))
@@ -1517,9 +1527,10 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
       <label>
         Factura / foto del servicio
         <input
+          ref={fileInputRef}
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onChange={(e) => { setFile(e.target.files?.[0] || null); setSaved(false) }}
         />
         {file ? (
           <span className="muted" style={{ fontSize: 12 }}>
@@ -1529,6 +1540,9 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
       </label>
 
       {error ? <div className="error">{error}</div> : null}
+      {saved && !error && (
+        <div style={{ color: 'var(--success)', fontSize: 13 }}>✓ Guardado — puedes registrar otro mantenimiento</div>
+      )}
       <button className="btn" disabled={!canSubmit || busy}>{busy ? 'Guardando…' : 'Registrar'}</button>
     </form>
   )

@@ -72,12 +72,30 @@ export async function api<T>(
   const payload = isJson ? await res.json().catch(() => null) : await res.text().catch(() => '')
 
   if (!res.ok) {
-    const message =
-      (payload && typeof payload === 'object' && ('detail' in payload) && (payload as any).detail) ||
-      res.statusText ||
-      'Error'
+    let message = 'Error'
+    if (payload && typeof payload === 'object') {
+      if ('detail' in payload && payload.detail) {
+        message = String(payload.detail)
+      } else {
+        const parts: string[] = []
+        for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+          if (Array.isArray(value)) {
+            parts.push(`${key}: ${value.join(', ')}`)
+          } else if (typeof value === 'string') {
+            parts.push(`${key}: ${value}`)
+          }
+        }
+        if (parts.length > 0) {
+          message = parts.join(' | ')
+        } else {
+          message = res.statusText || 'Error'
+        }
+      }
+    } else {
+      message = res.statusText || 'Error'
+    }
 
-    const err: ApiError = { status: res.status, message: String(message), details: payload }
+    const err: ApiError = { status: res.status, message, details: payload }
     throw err
   }
 

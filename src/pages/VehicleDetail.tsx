@@ -836,13 +836,19 @@ function EventEditModal({ event, catalog, onClose, onSaved }: {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    
+    // Clean and normalize cost (replace comma with dot, remove non-numeric except dot)
+    const cleanCost = cost ? String(cost).replace(/,/g, '.').replace(/[^0-9.]/g, '') : null
+    // Ensure task_code does not exceed the database limit of 50 chars
+    const cleanCode = effectiveCode ? effectiveCode.slice(0, 50) : ''
+
     try {
       await wb.updateEvent(event.id, {
-        task_code: effectiveCode,
+        task_code: cleanCode,
         date,
         km_at_service: km,
-        notes: notes || undefined,
-        cost: cost || undefined,
+        notes: notes || '',
+        cost: cleanCost || null,
       })
       await onSaved()
     } catch (e2) {
@@ -1436,14 +1442,20 @@ function NewEventForm({ vehicleId, catalog, onCreated }: {
     setBusy(true)
     setError(null)
     setSaved(false)
+
+    // Clean and normalize cost (replace comma with dot, remove non-numeric except dot)
+    const cleanCost = cost ? String(cost).replace(/,/g, '.').replace(/[^0-9.]/g, '') : undefined
+    // Ensure task_code does not exceed the database limit of 50 chars
+    const cleanCode = effectiveCode ? effectiveCode.trim().slice(0, 50) : undefined
+
     try {
       const event = await wb.createEvent({
         vehicle: vehicleId,
-        task_code: effectiveCode.trim() || undefined,
+        task_code: cleanCode || undefined,
         date: date || undefined,
         km_at_service: km,
         notes: notes || undefined,
-        cost: cost || undefined,
+        cost: cleanCost || undefined,
       })
       if (file) {
         await wb.uploadAttachment(event.id, file)

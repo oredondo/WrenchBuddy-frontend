@@ -11,6 +11,7 @@ export type User = {
   location: string
   avatar: string | null
   show_spending: boolean
+  preferred_language: 'es' | 'en'
   date_joined: string
 }
 
@@ -21,6 +22,7 @@ export type PublicProfile = {
   location: string
   avatar: string | null
   show_spending: boolean
+  preferred_language: 'es' | 'en'
 }
 
 export type Vehicle = {
@@ -121,6 +123,7 @@ export async function updateProfile(data: {
   bio?: string
   location?: string
   show_spending?: boolean
+  preferred_language?: 'es' | 'en'
   avatar?: File
 }): Promise<User> {
   const fd = new FormData()
@@ -128,6 +131,7 @@ export async function updateProfile(data: {
   if (data.bio !== undefined) fd.append('bio', data.bio)
   if (data.location !== undefined) fd.append('location', data.location)
   if (data.show_spending !== undefined) fd.append('show_spending', String(data.show_spending))
+  if (data.preferred_language !== undefined) fd.append('preferred_language', data.preferred_language)
   if (data.avatar) fd.append('avatar', data.avatar)
   return api<User>('/api/users/update_profile/', { method: 'PATCH', body: fd })
 }
@@ -216,7 +220,7 @@ export async function createEvent(data: {
   date?: string
   km_at_service: number
   notes?: string
-  cost?: string
+  cost?: string | null
 }): Promise<MaintenanceEvent> {
   return api<MaintenanceEvent>('/api/maintenance/events/', { method: 'POST', body: JSON.stringify(data) })
 }
@@ -226,7 +230,7 @@ export async function updateEvent(id: number, data: Partial<{
   date: string
   km_at_service: number
   notes: string
-  cost: string
+  cost: string | null
   is_public: boolean
 }>): Promise<MaintenanceEvent> {
   return api<MaintenanceEvent>(`/api/maintenance/events/${id}/`, { method: 'PATCH', body: JSON.stringify(data) })

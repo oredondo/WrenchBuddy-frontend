@@ -16,11 +16,13 @@ export default function Profile() {
   const [bio, setBio] = useState(user?.bio ?? '')
   const [location, setLocation] = useState(user?.location ?? '')
   const [showSpending, setShowSpending] = useState(user?.show_spending ?? false)
+  const [preferredLanguage, setPreferredLanguage] = useState<'es' | 'en'>(user?.preferred_language ?? 'es')
   const [avatar, setAvatar] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(user?.avatar ?? null)
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
 
   // Cambiar contraseña
   const [currentPwd, setCurrentPwd] = useState('')
@@ -79,6 +81,7 @@ export default function Profile() {
         bio,
         location,
         show_spending: showSpending,
+        preferred_language: preferredLanguage,
         avatar: avatar || undefined,
       })
       setUser(updated)
@@ -174,6 +177,18 @@ export default function Profile() {
               placeholder="Cuéntanos sobre ti y tu garaje…"
             />
           </label>
+
+          <label>
+            Idioma para la IA
+            <select
+              value={preferredLanguage}
+              onChange={e => { setPreferredLanguage(e.target.value as 'es' | 'en'); setSuccess(false) }}
+            >
+              <option value="es">Español</option>
+              <option value="en">English (Inglés)</option>
+            </select>
+          </label>
+
 
           {/* Toggle gastos */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--border)' }}>
